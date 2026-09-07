@@ -1,27 +1,26 @@
 import Foundation
 
 enum Format {
-    /// The user's first preferred language, so weekday names and durations follow the system
-    /// language even though this bundle ships no localisations of its own.
-    private static let locale = Locale(identifier: Locale.preferredLanguages.first ?? "en")
+    /// Presentation follows the selected application language.
+    static var locale: Locale { L10n.locale }
 
-    private static let clock: DateFormatter = {
+    private static var clock: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = locale
         formatter.dateFormat = "HH:mm"
         return formatter
-    }()
+    }
 
     /// "周三 19:00" / "Wed 19:00"
-    private static let weekdayClock: DateFormatter = {
+    private static var weekdayClock: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = locale
         formatter.dateFormat = "E HH:mm"
         return formatter
-    }()
+    }
 
     /// "3小时52分钟" / "3h 52m"
-    private static let durationFormatter: DateComponentsFormatter = {
+    private static var durationFormatter: DateComponentsFormatter {
         let formatter = DateComponentsFormatter()
         var calendar = Calendar.current
         calendar.locale = locale
@@ -30,7 +29,7 @@ enum Format {
         formatter.unitsStyle = .abbreviated
         formatter.zeroFormattingBehavior = .dropLeading
         return formatter
-    }()
+    }
 
     static func percent(_ window: UsageWindow?, mode: DisplayMode) -> String {
         guard let window else { return "–" }
@@ -56,12 +55,23 @@ enum Format {
     }
 
     /// "10月4日" / "Oct 4"
-    private static let shortDateFormatter: DateFormatter = {
+    private static var shortDateFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = locale
         formatter.setLocalizedDateFormatFromTemplate("MMMd")
         return formatter
-    }()
+    }
+
+    static func dateTime(_ date: Date) -> String {
+        date.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale))
+    }
+
+    static func countdown(_ interval: TimeInterval) -> String {
+        let formatter = durationFormatter
+        formatter.allowedUnits = [.day, .hour, .minute]
+        formatter.maximumUnitCount = 2
+        return formatter.string(from: max(60, interval)) ?? ""
+    }
 
     static func time(_ date: Date) -> String {
         clock.string(from: date)

@@ -28,6 +28,7 @@ bundle: build
 	@cp $(BUILD_DIR)/$(APP_NAME) $(APP_DIR)/Contents/MacOS/$(APP_NAME)
 	@cp Resources/Info.plist $(APP_DIR)/Contents/Info.plist
 	@cp Resources/AppIcon.icns $(APP_DIR)/Contents/Resources/AppIcon.icns
+	@cp -R $(BUILD_DIR)/QuotaBar_QuotaBar.bundle $(APP_DIR)/Contents/Resources/
 	@codesign --force --sign $(SIGN_ID) --identifier $(BUNDLE_ID) $(APP_DIR)
 	@codesign --verify --strict $(APP_DIR) && echo "bundled + signed: $(APP_DIR)"
 

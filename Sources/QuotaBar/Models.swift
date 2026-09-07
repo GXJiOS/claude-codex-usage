@@ -81,9 +81,17 @@ struct ProviderStatus: Sendable {
     var snapshot: UsageSnapshot?
     var errorMessage: String?
     var isLoading = false
+    var providerError: ProviderError?
+    var retryAt: Date?
+
+    var localizedErrorMessage: String? {
+        if let retryAt { return L("Rate limited; next try %@", Format.time(retryAt)) }
+        if let providerError { return providerError.errorDescription }
+        return errorMessage.map { L($0) }
+    }
 }
 
-enum ProviderError: LocalizedError {
+enum ProviderError: LocalizedError, Sendable {
     case notLoggedIn(String)
     case tokenExpired(String)
     case rateLimited
@@ -92,11 +100,11 @@ enum ProviderError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .notLoggedIn(let hint): return "Not logged in. \(hint)"
-        case .tokenExpired(let hint): return "Token expired. \(hint)"
-        case .rateLimited: return "Usage API rate-limited this app; backing off."
-        case .http(let status, let body): return "HTTP \(status): \(body)"
-        case .decoding(let detail): return "Unexpected response: \(detail)"
+        case .notLoggedIn(let hint): return L("Not logged in. %@", L(hint))
+        case .tokenExpired(let hint): return L("Token expired. %@", L(hint))
+        case .rateLimited: return L("Usage API rate-limited this app; backing off.")
+        case .http(let status, let body): return L("HTTP %d: %@", status, body)
+        case .decoding(let detail): return L("Unexpected response: %@", detail)
         }
     }
 }

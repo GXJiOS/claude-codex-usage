@@ -1,25 +1,19 @@
 # QuotaBar
 
-macOS menu bar monitor for Claude Code and Codex quotas. Menu bar only: no window, no Dock icon.
+Native macOS menu bar monitor for Claude Code and Codex quotas, with a card popover and a settings window. Both providers stay visible in the menu bar; the popover's provider menu selects the account details to inspect.
 
-```
-C: 64% | X: 96%
-   │         └ Codex: 5h session %, or the weekly % when the API reports no session window
-   └────────── Claude: 5h session %
-```
+- **Appearance**: battery, progress bar, percentage, badge percentage, or ring indicators; usage, monochrome, or accent colors; system, light, or dark theme. Badge percentages use rounded green/yellow/red backgrounds in usage-color mode. The preview and menu bar use the same renderer.
+- **Popover**: session and weekly quota, Claude per-model limits, local daily tokens, Codex full-reset count and earliest expiry. Reset times can show the date, countdown, or both. Missing windows and saved-log data are labeled explicitly.
+- **History**: provider filter, 5-hour / 24-hour / 7-day / 30-day / 90-day ranges, previous/next navigation, and JSON/CSV export of the visible samples. Daily token bars show the highest daily count observed in the selected range.
+- **Notifications**: optional session and weekly thresholds (75%, 90%, 95% by default), custom thresholds, sound, and quota-reset alerts. macOS permission is requested when notifications are enabled. Deduplication is persisted per account and quota window; API reset dates identify new windows. Saved-log fallback data does not trigger alerts.
+- **Settings**: refresh interval, login startup, history retention, read-only account status, and raw-response diagnostics. Right-click the menu bar item for Settings and Quit; the popover supports ⌘R and ⌘,; settings supports ⌘W.
+- **Language**: choose 简体中文 or English in App Settings → Language. Switching updates the interface, menu, notifications, dates, and token units immediately, and saves the choice for future launches. The first launch selects Simplified Chinese for a Chinese system language and English otherwise. Account/model names, exported field names, and raw diagnostic data retain their original values.
 
-Numbers are tinted by used quota: 0–50 green, 50–80 yellow, 80+ red.
+The menu bar shows Claude's session window and Codex's session window, falling back to Codex's weekly window when the API supplies only that window. Usage colors follow consumed quota even when displaying remaining percentages: green below 50%, orange from 50%, red from 80%. Badge percentages use yellow for the warning range.
 
-Click the item for the full picture: per provider a header (plan · signed-in email), Session / Weekly
-rows plus Claude's per-model weekly caps (e.g. Fable) as colour chips with the reset time, Codex's banked
-"full reset" credits (count + earliest expiry), a Today row with the tokens consumed today, then a
-Used ⇄ Remaining switch (colours always follow used %), Refresh Now with the last update time, and Quit.
-Weekday and duration wording follows the system language.
+Today's tokens come from this Mac's local transcripts: Claude Code `~/.claude/projects/**/*.jsonl` (`message.usage`, input + output + cache creation + cache read, largest value per message id), and Codex `~/.codex/sessions/**/*.jsonl` (`token_count` events, today's growth of the per-session cumulative `total_token_usage`). Other devices are not included.
 
-Today's tokens come from this Mac's local transcripts, since neither usage API reports token counts:
-Claude Code `~/.claude/projects/**/*.jsonl` (`message.usage`, input + output + cache creation + cache
-read, largest value per message id), Codex `~/.codex/sessions/**/*.jsonl` (`token_count` events,
-today's growth of the per-session cumulative `total_token_usage`). Other devices are not included.
+History uses the existing `~/Library/Application Support/QuotaBar/history.jsonl` format, sampled at most once per provider every 15 minutes. Retention choices are 7, 30, 90, and 365 days; pruning runs at launch.
 
 ## Build / run
 
@@ -58,7 +52,7 @@ Code and Codex to be signed in there.
 Codex fallback: when the API call fails (most often an expired token), the newest
 `rate_limits` event in `~/.codex/sessions/**/*.jsonl` is shown, marked with ⓘ and its timestamp.
 
-Polling: every 5 minutes, plus on menu open when data is older than 60 s. A 429 from either API
+Polling: every 5 minutes by default (configurable), plus on popover open when data is older than 60 s. A 429 from either API
 backs that provider off (10 min, doubling, max 60 min); Refresh Now ignores the backoff.
 
 ## Tokens
@@ -70,3 +64,29 @@ QuotaBar never refreshes or writes credentials. When a token expires the menu sa
 
 First launch triggers a Keychain permission dialog for `Claude Code-credentials`; choose
 **Always Allow**. The app is signed with a stable Apple Development identity so the grant survives rebuilds.
+
+## Verification and previews
+
+```bash
+swift test
+make bundle
+open build/QuotaBar.app --args --settings
+```
+
+A preview launch uses explicit sample data and temporary display preferences. It leaves credentials, history, login items, and notification delivery untouched:
+
+```bash
+open -n build/QuotaBar.app --args --preview --settings --preview-theme=dark --preview-page=history
+open -n build/QuotaBar.app --args --preview --settings --preview-page=app --preview-language=zh-Hans
+open -n build/QuotaBar.app --args --preview --preview-popover --preview-provider=codex --preview-state=fallback
+```
+
+Preview pages: `appearance`, `general`, `history`, `account`, `app`, `popover`, `diagnostics`. Preview states: `normal`, `empty`, `loading`, `expired`, `fallback`, `weekly-only`. Themes: `system`, `light`, `dark`. Languages: `en`, `zh-Hans`. Preview content is identified as sample data. Use a separate preview bundle when a production copy is already running.
+
+Tests cover threshold crossings, reset boundaries, restart persistence, send retries, account/window isolation, fallback suppression, preference migration, preview isolation, and filtered history exports.
+
+Localization tests check resource-key and placeholder parity, saved language choices, compatibility with older preferences, immediate format/error updates, and stable notification identities. `make bundle` packages both languages under `Contents/Resources/QuotaBar_QuotaBar.bundle`; the app resolves this bundled copy before development resources.
+
+## Attribution
+
+The native UI adapts layouts from Claude-Usage-Tracker. See [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) for the source attribution and MIT license.

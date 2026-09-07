@@ -1,37 +1,45 @@
 import AppKit
+import Combine
 
-/// The only UI: a status item drawn as "C [57%] | X [96%]" and its drop-down menu.
+/// Both providers share a native menu with aligned values, quota chips, and account details.
 @MainActor
 final class StatusBarController: NSObject, NSMenuDelegate {
     private let store: UsageStore
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
-    private var mode = DisplayMode.load()
+    private let model: SettingsModel
+    private var subscriptions = Set<AnyCancellable>()
+    private var mode: DisplayMode { model.displayMode }
+
+    /// Set by AppDelegate; opens the settings and history window.
+    var onOpenWindow: (() -> Void)?
 
     private let headerFont = NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .regular), weight: .semibold)
     private let detailFont = NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize(for: .small), weight: .regular)
     /// Percentages on the colour chips read larger than the surrounding row text.
     private let chipFont = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
 
-    init(store: UsageStore) {
+    init(store: UsageStore, model: SettingsModel) {
         self.store = store
+        self.model = model
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
         menu.delegate = self
-        // Informational rows are enabled view-based items with no action; without this
-        // AppKit would flip every action-less item back to disabled on display.
+        // Informational rows stay enabled while their custom views render.
         menu.autoenablesItems = false
-        // Fixed width: rows are rebuilt on every refresh and mode switch, and the widest row
-        // would otherwise resize the menu each time.
+        // Each menu starts at 360pt and accommodates its rows' intrinsic content widths.
         menu.minimumWidth = 360
         statusItem.menu = menu
-        store.onChange = { [weak self] in self?.render() }
+        store.$statuses.receive(on: DispatchQueue.main).sink { [weak self] _ in self?.render() }.store(in: &subscriptions)
+        store.$lastRefresh.receive(on: DispatchQueue.main).sink { [weak self] _ in self?.render() }.store(in: &subscriptions)
+        model.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in self?.render() }.store(in: &subscriptions)
         render()
     }
 
     func render() {
         if let button = statusItem.button {
-            button.image = StatusTitleImage.make(titleSegments())
+            button.image = StatusTitleImage.make(statuses: store.statuses, settings: model.settings, mode: mode)
+            button.setAccessibilityLabel(L("Claude and Codex usage"))
             button.imagePosition = .imageOnly
             button.imageScaling = .scaleNone
             button.title = ""
@@ -42,30 +50,21 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     // MARK: NSMenuDelegate
 
     func menuWillOpen(_ menu: NSMenu) {
+        rebuildMenu()
         store.refreshIfStale()
     }
 
-    // MARK: - Title
-
-    /// "C [57%] | X [96%]": one chip per provider (Claude: session; Codex: session, else weekly).
-    private func titleSegments() -> [StatusTitleImage.Segment] {
-        var segments: [StatusTitleImage.Segment] = []
-        for (index, kind) in ProviderKind.allCases.enumerated() {
-            if index > 0 { segments += [.gap(5), .text("|"), .gap(5)] }
-            segments += [.text(kind.shortLabel), .gap(3)]
-            if let window = store.statuses[kind]?.snapshot.flatMap({ kind.menuBarWindow(in: $0) }) {
-                segments.append(.chip("\(Format.percent(window, mode: mode))%", UsageColor.forUsed(window.usedPercent)))
-            } else {
-                segments.append(.text("–"))
-            }
-        }
-        return segments
+    /// Opens the status item's native menu, including explicit preview launches.
+    func showPopover() {
+        statusItem.button?.performClick(nil)
     }
 
     // MARK: - Menu
 
     private func rebuildMenu() {
         menu.removeAllItems()
+        menu.addItem(toolbarItem())
+        menu.addItem(.separator())
         for kind in ProviderKind.allCases {
             let status = store.statuses[kind] ?? ProviderStatus()
             var header = kind.displayName
@@ -73,57 +72,82 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             menu.addItem(headerItem(header, detail: status.snapshot?.accountLabel))
 
             if let snapshot = status.snapshot {
-                let labelWidth = max(8, snapshot.extras.map { $0.label.count }.max() ?? 0)
-                menu.addItem(usageItem(label: "Session", width: labelWidth, window: snapshot.session))
-                menu.addItem(usageItem(label: "Weekly", width: labelWidth, window: snapshot.weekly))
-                for extra in snapshot.extras {
+                let labels = ["00000000", L("Session"), L("Weekly"), L("Today"), L("Resets")]
+                    + snapshot.extras.map(\.label)
+                let labelWidth = labels.map { text -> CGFloat in
+                    let label = NSTextField(labelWithString: text)
+                    label.font = detailFont
+                    return ceil(label.fittingSize.width)
+                }.max() ?? 0
+                menu.addItem(usageItem(label: L("Session"), width: labelWidth, window: snapshot.session))
+                menu.addItem(usageItem(label: L("Weekly"), width: labelWidth, window: snapshot.weekly))
+                for extra in snapshot.extras where model.settings.showModels {
                     menu.addItem(usageItem(label: extra.label, width: labelWidth, window: extra.window))
                 }
-                if let credits = snapshot.resetCredits {
-                    menu.addItem(resetCreditsItem(label: "Resets", width: labelWidth, credits: credits))
+                if model.settings.showResetCredits, let credits = snapshot.resetCredits {
+                    menu.addItem(resetCreditsItem(label: L("Resets"), width: labelWidth, credits: credits))
                 }
-                if let tokens = snapshot.tokensToday {
-                    menu.addItem(tokensItem(label: "Today", width: labelWidth, tokens: tokens))
+                if model.settings.showTokens, let tokens = snapshot.tokensToday {
+                    menu.addItem(tokensItem(label: L("Today"), width: labelWidth, tokens: tokens))
                 }
                 if let note = snapshot.sourceNote {
                     menu.addItem(detailItem("ⓘ \(truncate(note))", color: .secondaryLabelColor))
                 }
             }
-            if let error = status.errorMessage {
+            if let error = status.localizedErrorMessage {
                 menu.addItem(detailItem("⚠ \(truncate(error))", color: .systemOrange))
             } else if status.snapshot == nil {
-                menu.addItem(detailItem(status.isLoading ? "Loading…" : "No data yet", color: .secondaryLabelColor))
+                menu.addItem(detailItem(L(status.isLoading ? "Loading…" : "No data yet"), color: .secondaryLabelColor))
             }
             menu.addItem(.separator())
         }
 
         // Switch off = Used, on = Remaining; the active side is drawn in full label colour.
-        let modeRow = ToggleRowView(offTitle: "Used", onTitle: "Remaining", isOn: mode == .remaining)
+        let modeRow = ToggleRowView(offTitle: L("Used"), onTitle: L("Remaining"), isOn: mode == .remaining)
         modeRow.onChange = { [weak self] isOn in self?.setMode(isOn ? .remaining : .used) }
-        let modeToggle = NSMenuItem(title: "Used / Remaining", action: nil, keyEquivalent: "")
+        let modeToggle = NSMenuItem(title: "\(L("Used")) / \(L("Remaining"))", action: nil, keyEquivalent: "")
         modeToggle.view = modeRow
         menu.addItem(modeToggle)
         menu.addItem(.separator())
 
-        let isUpdating = store.statuses.values.contains { $0.isLoading }
-        let detail = isUpdating ? "Loading…" : (store.lastRefresh.map { Format.time($0) } ?? "Not updated yet")
-        let refreshRow = ActionRowView(title: "Refresh Now", detail: detail)
-        refreshRow.action = { [weak self] in self?.refreshNow() }
-        // Keeps ⌘R working while the menu is open; the row view draws the label and the time.
-        let refresh = NSMenuItem(title: "Refresh Now", action: #selector(refreshNow), keyEquivalent: "r")
-        refresh.target = self
-        refresh.view = refreshRow
-        menu.addItem(refresh)
-        menu.addItem(.separator())
+        // Hidden action items retain the menu's keyboard shortcuts.
+        for (title, action, key) in [(L("Refresh usage"), #selector(refreshNow), "r"),
+                                      (L("Settings"), #selector(openWindow), ",")] {
+            let shortcut = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            shortcut.target = self
+            shortcut.isHidden = true
+            shortcut.allowsKeyEquivalentWhenHidden = true
+            menu.addItem(shortcut)
+        }
         // Own selector: macOS decorates the standard terminate: item with a glyph.
-        let quit = NSMenuItem(title: "Quit QuotaBar", action: #selector(quitApp), keyEquivalent: "q")
+        let quit = NSMenuItem(title: L("Quit QuotaBar"), action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
     }
 
-    /// Informational rows are plain labels hosted in a custom view: no action, no hover
-    /// highlight, and the text colour is exactly what we set (a disabled NSMenuItem
-    /// would be drawn dimmed regardless of its attributed title).
+    private func toolbarItem() -> NSMenuItem {
+        let statuses = ProviderKind.allCases.map { store.statuses[$0] ?? ProviderStatus() }
+        let isUpdating = statuses.contains { $0.isLoading }
+        let hasIssues = statuses.contains { $0.errorMessage != nil || $0.snapshot?.sourceNote != nil }
+        let connected = statuses.allSatisfy { $0.snapshot != nil }
+        let detail: String
+        if store.isPreview { detail = L("Preview data") }
+        else if isUpdating { detail = L("Refreshing…") }
+        else if hasIssues { detail = L("Connection needs attention") }
+        else if connected, let oldest = statuses.compactMap({ $0.snapshot?.fetchedAt }).min() {
+            detail = L("Updated %@", Format.time(oldest))
+        } else { detail = L("Waiting for usage") }
+        let row = MenuToolbarView(detail: detail,
+                                  statusColor: hasIssues ? .systemOrange : connected ? .systemGreen : .secondaryLabelColor,
+                                  refreshEnabled: !isUpdating)
+        row.onRefresh = { [weak self] in self?.refreshNow() }
+        row.onSettings = { [weak self] in self?.openWindow() }
+        let item = NSMenuItem(title: "QuotaBar", action: nil, keyEquivalent: "")
+        item.view = row
+        return item
+    }
+
+    /// Enabled section headers align provider text with trailing account details.
     private func headerItem(_ title: String, detail: String? = nil) -> NSMenuItem {
         let row = HeaderRowView(title: title, detail: detail, titleFont: headerFont,
                                 detailFont: NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small)))
@@ -137,28 +161,28 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     /// "Session  [64%]  3小时52分钟 (20:50)" — the percentage sits on a colour chip, the reset time follows.
-    private func usageItem(label: String, width: Int, window: UsageWindow?) -> NSMenuItem {
+    private func usageItem(label: String, width: CGFloat, window: UsageWindow?) -> NSMenuItem {
         let value: NSView
         if let window {
             value = BadgeView(text: "\(Format.percent(window, mode: mode))%", fill: UsageColor.forUsed(window.usedPercent), font: chipFont)
         } else {
             value = plainValue("n/a", color: .secondaryLabelColor)
         }
-        let item = detailRow(label: label, width: width, value: value, trailing: window.map(Format.resetText) ?? "")
+        let item = detailRow(label: label, width: width, value: value, trailing: window.map(resetText) ?? "")
         item.title = "\(label) \(Format.windowLine(window, mode: mode))"
         return item
     }
 
     /// "Resets  2                expires 10月4日"
-    private func resetCreditsItem(label: String, width: Int, credits: ResetCredits) -> NSMenuItem {
-        let trailing = credits.earliestExpiry.map { "expires \(Format.shortDate($0))" } ?? ""
+    private func resetCreditsItem(label: String, width: CGFloat, credits: ResetCredits) -> NSMenuItem {
+        let trailing = credits.earliestExpiry.map { L("expires %@", Format.shortDate($0)) } ?? ""
         let item = detailRow(label: label, width: width, value: plainValue(String(credits.availableCount), color: .labelColor), trailing: trailing)
         item.title = "\(label) \(credits.availableCount) \(trailing)"
         return item
     }
 
     /// "Today  1.2M" — tokens consumed today on this Mac.
-    private func tokensItem(label: String, width: Int, tokens: Int) -> NSMenuItem {
+    private func tokensItem(label: String, width: CGFloat, tokens: Int) -> NSMenuItem {
         let item = detailRow(label: label, width: width, value: plainValue(Format.tokens(tokens), color: .labelColor), trailing: "")
         item.title = "\(label) \(Format.tokens(tokens)) tokens"
         return item
@@ -172,13 +196,13 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     }
 
     /// Indented row: monospaced name column, a value view, and right-aligned trailing text.
-    private func detailRow(label: String, width: Int, value: NSView, trailing: String) -> NSMenuItem {
+    private func detailRow(label: String, width: CGFloat, value: NSView, trailing: String) -> NSMenuItem {
         let leftInset: CGFloat = 14 + 12
         let rightInset: CGFloat = 14
         let gap: CGFloat = 8
         let rowHeight: CGFloat = 24
 
-        let name = NSTextField(labelWithString: label.padding(toLength: width, withPad: " ", startingAt: 0))
+        let name = NSTextField(labelWithString: label)
         name.font = detailFont
         name.textColor = .labelColor
 
@@ -196,6 +220,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         NSLayoutConstraint.activate([
             name.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: leftInset),
             name.centerYAnchor.constraint(equalTo: row.centerYAnchor),
+            name.widthAnchor.constraint(equalToConstant: width),
             value.leadingAnchor.constraint(equalTo: name.trailingAnchor, constant: gap),
             value.centerYAnchor.constraint(equalTo: row.centerYAnchor),
             // Reset time / expiry hugs the right edge, in line with the header's account label.
@@ -203,7 +228,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             trailingLabel.leadingAnchor.constraint(greaterThanOrEqualTo: value.trailingAnchor, constant: gap),
             trailingLabel.centerYAnchor.constraint(equalTo: row.centerYAnchor),
         ])
-        let naturalWidth = leftInset + name.fittingSize.width + gap + value.fittingSize.width + gap + trailingLabel.fittingSize.width + rightInset
+        let naturalWidth = leftInset + width + gap + value.fittingSize.width + gap + trailingLabel.fittingSize.width + rightInset
         row.frame = NSRect(x: 0, y: 0, width: ceil(naturalWidth), height: rowHeight)
 
         let item = NSMenuItem(title: label, action: nil, keyEquivalent: "")
@@ -245,15 +270,100 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         Task { await store.refresh(force: true) }
     }
 
+    @objc private func openWindow() {
+        menu.cancelTracking()
+        onOpenWindow?()
+    }
+
     @objc private func quitApp() {
         NSApp.terminate(nil)
     }
 
     private func setMode(_ newMode: DisplayMode) {
         guard newMode != mode else { return }
-        mode = newMode
-        mode.save()
-        // Let the switch finish its click before the menu rows are rebuilt underneath it.
-        DispatchQueue.main.async { [weak self] in self?.render() }
+        // Complete the native switch event before updating the shared model and its menu views.
+        DispatchQueue.main.async { [weak self] in
+            self?.model.showRemaining = newMode == .remaining
+        }
+    }
+
+    private func resetText(_ window: UsageWindow) -> String {
+        guard let reset = window.resetsAt else { return "" }
+        switch model.settings.timeDisplay {
+        case .both: return Format.resetText(window)
+        case .resetTime: return Format.dateTime(reset)
+        case .countdown: return Format.countdown(reset.timeIntervalSinceNow)
+        }
+    }
+}
+
+/// Shared menu actions sit beside the update status above both provider sections.
+private final class MenuToolbarView: NSView {
+    var onRefresh: (() -> Void)?
+    var onSettings: (() -> Void)?
+
+    init(detail: String, statusColor: NSColor, refreshEnabled: Bool) {
+        super.init(frame: NSRect(x: 0, y: 0, width: 360, height: 52))
+        autoresizingMask = [.width]
+        let title = NSTextField(labelWithString: "QuotaBar")
+        title.font = .systemFont(ofSize: 14, weight: .semibold)
+        let subtitle = NSTextField(labelWithString: detail)
+        subtitle.font = .systemFont(ofSize: 10, weight: .medium)
+        subtitle.textColor = .secondaryLabelColor
+        subtitle.lineBreakMode = .byTruncatingTail
+        let dot = NSView()
+        dot.wantsLayer = true
+        dot.layer?.backgroundColor = statusColor.cgColor
+        dot.layer?.cornerRadius = 3
+        let refresh = iconButton(symbol: "arrow.clockwise", title: L("Refresh usage"), action: #selector(refreshClicked))
+        refresh.isEnabled = refreshEnabled
+        let settings = iconButton(symbol: "gearshape.fill", title: L("Settings"), action: #selector(settingsClicked))
+        for view in [title, subtitle, dot, refresh, settings] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(view)
+        }
+        NSLayoutConstraint.activate([
+            title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            title.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            title.trailingAnchor.constraint(lessThanOrEqualTo: refresh.leadingAnchor, constant: -12),
+            dot.leadingAnchor.constraint(equalTo: title.leadingAnchor),
+            dot.centerYAnchor.constraint(equalTo: subtitle.centerYAnchor),
+            dot.widthAnchor.constraint(equalToConstant: 6),
+            dot.heightAnchor.constraint(equalToConstant: 6),
+            subtitle.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 4),
+            subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 3),
+            subtitle.trailingAnchor.constraint(lessThanOrEqualTo: refresh.leadingAnchor, constant: -12),
+            settings.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+            settings.centerYAnchor.constraint(equalTo: centerYAnchor),
+            settings.widthAnchor.constraint(equalToConstant: 24),
+            settings.heightAnchor.constraint(equalToConstant: 24),
+            refresh.trailingAnchor.constraint(equalTo: settings.leadingAnchor, constant: -6),
+            refresh.centerYAnchor.constraint(equalTo: settings.centerYAnchor),
+            refresh.widthAnchor.constraint(equalToConstant: 24),
+            refresh.heightAnchor.constraint(equalToConstant: 24),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    private func iconButton(symbol: String, title: String, action: Selector) -> NSButton {
+        let button = NSButton(image: NSImage(systemSymbolName: symbol, accessibilityDescription: title)!,
+                              target: self, action: action)
+        button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.contentTintColor = .secondaryLabelColor
+        button.toolTip = title
+        button.setAccessibilityLabel(title)
+        return button
+    }
+
+    @objc private func refreshClicked() {
+        DispatchQueue.main.async { [onRefresh] in onRefresh?() }
+    }
+
+    @objc private func settingsClicked() {
+        DispatchQueue.main.async { [onSettings] in onSettings?() }
     }
 }

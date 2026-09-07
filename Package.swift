@@ -3,11 +3,14 @@ import PackageDescription
 
 let package = Package(
     name: "QuotaBar",
+    defaultLocalization: "en",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
             name: "QuotaBar",
-            path: "Sources/QuotaBar"
-        )
+            path: "Sources/QuotaBar",
+            resources: [.process("Resources")]
+        ),
+        .testTarget(name: "QuotaBarTests", dependencies: ["QuotaBar"], path: "Tests/QuotaBarTests")
     ]
 )

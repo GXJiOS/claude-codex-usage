@@ -222,3 +222,13 @@
 "Loading…" = "Loading…";
 "No data yet" = "No data yet";
 "Not updated yet" = "Not updated yet";
+"Usage Color Thresholds" = "Usage Color Thresholds";
+"Applies to usage-color indicators and quota badges, based on consumed quota." = "Applies to usage-color indicators and quota badges, based on consumed quota.";
+"Green" = "Green";
+"Below %d%%" = "Below %d%%";
+"Yellow starts at" = "Yellow starts at";
+"Red starts at" = "Red starts at";
+"%d%% to below %d%%" = "%d%% to below %d%%";
+"%d%% and above" = "%d%% and above";
+"Green updates automatically. Warning indicators keep their yellow or orange appearance." = "Green updates automatically. Warning indicators keep their yellow or orange appearance.";
+"Restore Defaults" = "Restore Defaults";

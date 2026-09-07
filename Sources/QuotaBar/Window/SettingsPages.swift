@@ -54,6 +54,7 @@ struct AppearancePage: View {
                         .font(Typography.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
+            UsageColorSettingsCard()
         }
     }
 
@@ -62,6 +63,65 @@ struct AppearancePage: View {
         settings.menuBarStyle = style
         settings.showLabels = false
         return StatusTitleImage.make(statuses: PreviewData.statuses(), settings: settings, mode: model.displayMode)
+    }
+}
+
+private struct UsageColorSettingsCard: View {
+    @EnvironmentObject private var model: SettingsModel
+    private var thresholds: UsageColorThresholds { model.settings.usageColorThresholds }
+
+    private var yellowFrom: Binding<Int> {
+        Binding(get: { thresholds.yellowFrom }, set: {
+            model.settings.usageColorThresholds = UsageColorThresholds(yellowFrom: $0, redFrom: thresholds.redFrom)
+        })
+    }
+
+    private var redFrom: Binding<Int> {
+        Binding(get: { thresholds.redFrom }, set: {
+            model.settings.usageColorThresholds = UsageColorThresholds(yellowFrom: thresholds.yellowFrom, redFrom: $0)
+        })
+    }
+
+    var body: some View {
+        SettingsCard("Usage Color Thresholds", subtitle: "Applies to usage-color indicators and quota badges, based on consumed quota.") {
+            VStack(spacing: 14) {
+                HStack(spacing: 10) {
+                    dot(.systemGreen)
+                    Text(L("Green")).font(Typography.body)
+                    Spacer()
+                    Text(L("Below %d%%", thresholds.yellowFrom)).font(Typography.body).foregroundColor(.secondary)
+                }
+                Divider()
+                HStack(spacing: 10) {
+                    dot(.systemYellow)
+                    SettingRow(title: "Yellow starts at", detail: L("%d%% to below %d%%", thresholds.yellowFrom, thresholds.redFrom)) {
+                        Stepper(value: yellowFrom, in: 1...(thresholds.redFrom - 1)) {
+                            Text("\(thresholds.yellowFrom)%").monospacedDigit()
+                        }.frame(width: 105).accessibilityLabel(L("Yellow starts at"))
+                    }
+                }
+                Divider()
+                HStack(spacing: 10) {
+                    dot(.systemRed)
+                    SettingRow(title: "Red starts at", detail: L("%d%% and above", thresholds.redFrom)) {
+                        Stepper(value: redFrom, in: (thresholds.yellowFrom + 1)...100) {
+                            Text("\(thresholds.redFrom)%").monospacedDigit()
+                        }.frame(width: 105).accessibilityLabel(L("Red starts at"))
+                    }
+                }
+                HStack {
+                    Text(L("Green updates automatically. Warning indicators keep their yellow or orange appearance."))
+                        .font(Typography.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 12)
+                    Button(L("Restore Defaults")) { model.settings.usageColorThresholds = .default }
+                        .disabled(thresholds == .default)
+                }
+            }
+        }
+    }
+
+    private func dot(_ color: NSColor) -> some View {
+        Circle().fill(Color(nsColor: color)).frame(width: 7, height: 7).accessibilityHidden(true)
     }
 }
 
@@ -105,7 +165,8 @@ struct GeneralPage: View {
                     Text(L("Alert thresholds")).font(Typography.body)
                     ForEach(model.settings.notificationThresholds.sorted(), id: \.self) { threshold in
                         HStack(spacing: 8) {
-                            Circle().fill(Color(nsColor: StatusTitleImage.color(used: Double(threshold), mode: .usage)))
+                            Circle().fill(Color(nsColor: StatusTitleImage.color(used: Double(threshold), mode: .usage,
+                                                                             thresholds: model.settings.usageColorThresholds)))
                                 .frame(width: 7, height: 7)
                             Text("\(threshold)%").font(.system(size: 12, weight: .semibold)).frame(width: 34, alignment: .leading)
                             Text(L("Quota consumed")).font(Typography.caption).foregroundColor(.secondary)

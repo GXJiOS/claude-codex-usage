@@ -222,3 +222,13 @@
 "Loading…" = "正在加载…";
 "No data yet" = "暂无数据";
 "Not updated yet" = "尚未更新";
+"Usage Color Thresholds" = "用量颜色阈值";
+"Applies to usage-color indicators and quota badges, based on consumed quota." = "按已用比例，应用于菜单栏用量配色和额度色块。";
+"Green" = "绿色";
+"Below %d%%" = "低于 %d%%";
+"Yellow starts at" = "黄色起点";
+"Red starts at" = "红色起点";
+"%d%% to below %d%%" = "%d%% 至低于 %d%%";
+"%d%% and above" = "%d%% 及以上";
+"Green updates automatically. Warning indicators keep their yellow or orange appearance." = "绿色范围自动联动，警戒档沿用黄色或橙色配色。";
+"Restore Defaults" = "恢复默认";

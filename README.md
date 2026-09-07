@@ -1,15 +1,15 @@
 # QuotaBar
 
-Native macOS menu bar monitor for Claude Code and Codex quotas, with a card popover and a settings window. Both providers stay visible in the menu bar; the popover's provider menu selects the account details to inspect.
+Native macOS menu bar monitor for Claude Code and Codex quotas, with a compact usage menu and a settings window. Both providers appear together in the menu. Refresh and Settings sit at the top right; platform names are shown in full in the menu bar.
 
 - **Appearance**: battery, progress bar, percentage, badge percentage, or ring indicators; usage, monochrome, or accent colors; system, light, or dark theme. Badge percentages use rounded green/yellow/red backgrounds in usage-color mode. The preview and menu bar use the same renderer.
-- **Popover**: session and weekly quota, Claude per-model limits, local daily tokens, Codex full-reset count and earliest expiry. Reset times can show the date, countdown, or both. Missing windows and saved-log data are labeled explicitly.
+- **Usage menu**: session and weekly quota, Claude per-model limits, local daily tokens, Codex full-reset count and earliest expiry. Reset times can show the date, countdown, or both. Missing windows and saved-log data are labeled explicitly.
 - **History**: provider filter, 5-hour / 24-hour / 7-day / 30-day / 90-day ranges, previous/next navigation, and JSON/CSV export of the visible samples. Daily token bars show the highest daily count observed in the selected range.
 - **Notifications**: optional session and weekly thresholds (75%, 90%, 95% by default), custom thresholds, sound, and quota-reset alerts. macOS permission is requested when notifications are enabled. Deduplication is persisted per account and quota window; API reset dates identify new windows. Saved-log fallback data does not trigger alerts.
-- **Settings**: refresh interval, login startup, history retention, read-only account status, and raw-response diagnostics. Right-click the menu bar item for Settings and Quit; the popover supports ⌘R and ⌘,; settings supports ⌘W.
+- **Settings**: refresh interval, login startup, history retention, read-only account status, and raw-response diagnostics. The usage menu supports ⌘R and ⌘,; settings supports ⌘W.
 - **Language**: choose 简体中文 or English in App Settings → Language. Switching updates the interface, menu, notifications, dates, and token units immediately, and saves the choice for future launches. The first launch selects Simplified Chinese for a Chinese system language and English otherwise. Account/model names, exported field names, and raw diagnostic data retain their original values.
 
-The menu bar shows Claude's session window and Codex's session window, falling back to Codex's weekly window when the API supplies only that window. Usage colors follow consumed quota even when displaying remaining percentages: green below 50%, orange from 50%, red from 80%. Badge percentages use yellow for the warning range.
+The menu bar shows Claude's session window and Codex's session window, falling back to Codex's weekly window when the API supplies only that window. Appearance → Usage Color Thresholds sets the warning and critical boundaries. Defaults are green below 50%, warning from 50%, and red from 80%. Yellow begins at the warning boundary; plain indicators retain their orange warning tint. Green updates automatically, and Restore Defaults restores 50% / 80%. The boundaries must satisfy 1 ≤ yellow < red ≤ 100. Colors always follow consumed quota in both used and remaining display modes. Color settings are independent of notification thresholds.
 
 Today's tokens come from this Mac's local transcripts: Claude Code `~/.claude/projects/**/*.jsonl` (`message.usage`, input + output + cache creation + cache read, largest value per message id), and Codex `~/.codex/sessions/**/*.jsonl` (`token_count` events, today's growth of the per-session cumulative `total_token_usage`). Other devices are not included.
 
@@ -90,3 +90,5 @@ Localization tests check resource-key and placeholder parity, saved language cho
 ## Attribution
 
 The native UI adapts layouts from Claude-Usage-Tracker. See [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) for the source attribution and MIT license.
+
+Color-threshold tests cover default and custom boundaries, persistence, older preferences, invalid-value recovery, renderer color modes, and independent notification settings.

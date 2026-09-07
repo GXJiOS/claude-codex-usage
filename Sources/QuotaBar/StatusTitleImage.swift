@@ -2,12 +2,12 @@ import AppKit
 
 /// Native menu bar indicators share the settings page's live preview renderer.
 enum StatusTitleImage {
-    static func color(used: Double, mode: IndicatorColorMode) -> NSColor {
+    static func color(used: Double, mode: IndicatorColorMode, thresholds: UsageColorThresholds = .default) -> NSColor {
         switch mode {
         case .monochrome: return .labelColor
         case .accent: return .controlAccentColor
         case .usage:
-            let color = UsageColor.forUsed(used)
+            let color = UsageColor.forUsed(used, thresholds: thresholds)
             return color == .systemYellow ? .systemOrange : color
         }
     }
@@ -67,7 +67,7 @@ enum StatusTitleImage {
                 }
                 let amount = min(100, max(0, mode.value(usedPercent: window.usedPercent)))
                 let fraction = amount / 100
-                let tint = color(used: window.usedPercent, mode: settings.colorMode)
+                let tint = color(used: window.usedPercent, mode: settings.colorMode, thresholds: settings.usageColorThresholds)
                 switch settings.menuBarStyle {
                 case .percentage:
                     let valueRect = NSRect(x: rect.minX, y: 0, width: rect.width, height: stackedLabels ? 13 : 22)
@@ -76,7 +76,8 @@ enum StatusTitleImage {
                     let text = "\(Int(amount.rounded()))%"
                     let chip = NSRect(x: rect.minX, y: stackedLabels ? 0 : 2.5,
                                       width: rect.width, height: stackedLabels ? 13 : 17)
-                    let fill = settings.colorMode == .usage ? UsageColor.forUsed(window.usedPercent) : tint
+                    let fill = settings.colorMode == .usage
+                        ? UsageColor.forUsed(window.usedPercent, thresholds: settings.usageColorThresholds) : tint
                     fill.setFill()
                     let radius: CGFloat = stackedLabels ? 3 : 4
                     NSBezierPath(roundedRect: chip, xRadius: radius, yRadius: radius).fill()

@@ -164,7 +164,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private func usageItem(label: String, width: CGFloat, window: UsageWindow?) -> NSMenuItem {
         let value: NSView
         if let window {
-            value = BadgeView(text: "\(Format.percent(window, mode: mode))%", fill: UsageColor.forUsed(window.usedPercent), font: chipFont)
+            value = BadgeView(text: "\(Format.percent(window, mode: mode))%",
+                              fill: UsageColor.forUsed(window.usedPercent, thresholds: model.settings.usageColorThresholds), font: chipFont)
         } else {
             value = plainValue("n/a", color: .secondaryLabelColor)
         }

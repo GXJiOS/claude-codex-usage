@@ -14,6 +14,7 @@ struct Settings: Sendable, Equatable, Codable {
 
     var menuBarStyle: MenuBarStyle = .ring
     var colorMode: IndicatorColorMode = .usage
+    var usageColorThresholds: UsageColorThresholds = .default
     var theme: AppTheme = .system
     var showLabels = true
     var timeDisplay: ResetTimeDisplay = .both
@@ -64,6 +65,7 @@ extension Settings {
         case refreshInterval, historyRetentionDays, menuBarStyle, colorMode, theme, showLabels
         case timeDisplay, showTokens, showModels, showResetCredits, notificationsEnabled
         case notificationThresholds, notificationSound, notifyOnReset, language
+        case usageColorThresholds
     }
 
     init(from decoder: Decoder) throws {
@@ -74,6 +76,7 @@ extension Settings {
         menuBarStyle = storedStyle == "compact" ? .percentageBadge
             : storedStyle.flatMap(MenuBarStyle.init(rawValue:)) ?? .ring
         colorMode = try values.decodeIfPresent(IndicatorColorMode.self, forKey: .colorMode) ?? .usage
+        usageColorThresholds = (try? values.decode(UsageColorThresholds.self, forKey: .usageColorThresholds)) ?? .default
         theme = try values.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .system
         showLabels = try values.decodeIfPresent(Bool.self, forKey: .showLabels) ?? true
         timeDisplay = try values.decodeIfPresent(ResetTimeDisplay.self, forKey: .timeDisplay) ?? .both
@@ -85,6 +88,32 @@ extension Settings {
         notificationSound = try values.decodeIfPresent(Bool.self, forKey: .notificationSound) ?? true
         notifyOnReset = try values.decodeIfPresent(Bool.self, forKey: .notifyOnReset) ?? true
         language = try values.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .systemDefault()
+    }
+}
+
+/// Ordered boundaries partition consumed quota into green, warning, and red ranges.
+struct UsageColorThresholds: Codable, Equatable, Sendable {
+    let yellowFrom: Int
+    let redFrom: Int
+
+    static let `default` = UsageColorThresholds()
+
+    init(yellowFrom: Int = 50, redFrom: Int = 80) {
+        if (1...99).contains(yellowFrom), (2...100).contains(redFrom), yellowFrom < redFrom {
+            self.yellowFrom = yellowFrom
+            self.redFrom = redFrom
+        } else {
+            self.yellowFrom = 50
+            self.redFrom = 80
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey { case yellowFrom, redFrom }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(yellowFrom: try values.decode(Int.self, forKey: .yellowFrom),
+                  redFrom: try values.decode(Int.self, forKey: .redFrom))
     }
 }
 

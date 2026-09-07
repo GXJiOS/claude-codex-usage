@@ -177,7 +177,8 @@ private struct UsageCard: View {
         return min(100, max(0, model.displayMode.value(usedPercent: used)))
     }
     private var tint: Color {
-        Color(nsColor: StatusTitleImage.color(used: window?.usedPercent ?? 0, mode: model.settings.colorMode))
+        Color(nsColor: StatusTitleImage.color(used: window?.usedPercent ?? 0, mode: model.settings.colorMode,
+                                              thresholds: model.settings.usageColorThresholds))
     }
 
     var body: some View {

@@ -36,9 +36,9 @@ make install
 Signing: the Makefile picks the first valid Apple Development identity in the login keychain and
 falls back to ad-hoc when there is none. Pin one per machine in an untracked `local.mk`
 (`SIGN_ID := <sha1>`, list identities with `security find-identity -v -p codesigning`). The Keychain
-"Always Allow" for Claude Code's token is bound to that identity; with ad-hoc signing the prompt comes
-back after every rebuild. First launch on a new Mac asks for Keychain access once, and needs Claude
-Code and Codex to be signed in there.
+authorization for Claude Code's token is bound to that identity. A stable signing identity helps
+preserve access across builds. Claude Code and Codex must be signed in on the new Mac, and Claude's
+Keychain item must authorize the installed QuotaBar identity for silent access.
 
 ## Data sources
 
@@ -62,13 +62,18 @@ QuotaBar never refreshes or writes credentials. When a token expires the menu sa
 - Claude: run `claude` once, it refreshes the Keychain item.
 - Codex: run `codex` once, it refreshes `auth.json`.
 
-First launch triggers a Keychain permission dialog for `Claude Code-credentials`; choose
-**Always Allow**. The app is signed with a stable Apple Development identity so the grant survives rebuilds.
+Automatic refresh, manual refresh, and diagnostics read `Claude Code-credentials` with Keychain
+interaction disabled. If the Keychain is locked or authorization is unavailable, Claude shows
+**Connection needs attention** and retains its last successful snapshot in memory. The next refresh
+tries silently again, so data resumes when access is available. Codex refresh runs independently.
+Keychain authorization is managed separately in macOS; credential updates by other applications
+can change the item's access rules even when QuotaBar uses a stable signing identity.
 
 ## Verification and previews
 
 ```bash
 swift test
+QUOTABAR_KEYCHAIN_INTEGRATION=1 swift test --filter KeychainTests
 make bundle
 open build/QuotaBar.app --args --settings
 ```
@@ -84,6 +89,9 @@ open -n build/QuotaBar.app --args --preview --preview-popover --preview-provider
 Preview pages: `appearance`, `general`, `history`, `account`, `app`, `popover`, `diagnostics`. Preview states: `normal`, `empty`, `loading`, `expired`, `fallback`, `weekly-only`. Themes: `system`, `light`, `dark`. Languages: `en`, `zh-Hans`. Preview content is identified as sample data. Use a separate preview bundle when a production copy is already running.
 
 Tests cover threshold crossings, reset boundaries, restart persistence, send retries, account/window isolation, fallback suppression, preference migration, preview isolation, and filtered history exports.
+
+The optional Keychain integration tests create uniquely named, non-sensitive test credentials and
+delete them after checking authorized reads and denied reads through automatic and manual refresh.
 
 Localization tests check resource-key and placeholder parity, saved language choices, compatibility with older preferences, immediate format/error updates, and stable notification identities. `make bundle` packages both languages under `Contents/Resources/QuotaBar_QuotaBar.bundle`; the app resolves this bundled copy before development resources.
 

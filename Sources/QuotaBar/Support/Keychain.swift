@@ -1,23 +1,34 @@
 import Foundation
+import LocalAuthentication
 import Security
 
 struct KeychainError: LocalizedError {
     let status: OSStatus
 
     var errorDescription: String? {
-        (SecCopyErrorMessageString(status, nil) as String?) ?? "Keychain error \(status)"
+        if status == errSecInteractionNotAllowed || status == errSecAuthFailed {
+            return "Connection needs attention"
+        }
+        return (SecCopyErrorMessageString(status, nil) as String?) ?? "Keychain error \(status)"
     }
 }
 
 enum Keychain {
-    /// Reads the secret of a generic-password item by service name.
-    /// macOS asks the user for permission the first time another app touches the item.
+    /// Reads a generic-password item silently and reports unavailable access as an error.
     static func genericPassword(service: String) throws -> Data {
+        // Legacy login-keychain items require the process-wide interaction setting.
+        // QuotaBar keeps it disabled for automatic, manual, and diagnostic reads.
+        let interactionStatus = SecKeychainSetUserInteractionAllowed(false)
+        guard interactionStatus == errSecSuccess else { throw KeychainError(status: interactionStatus) }
+
+        let context = LAContext()
+        context.interactionNotAllowed = true
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationContext as String: context,
         ]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)

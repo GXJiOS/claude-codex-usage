@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 import os
 
 /// Reads Claude Code's OAuth token from the login Keychain and asks Anthropic's
@@ -6,10 +7,30 @@ import os
 final class ClaudeProvider: UsageProvider, @unchecked Sendable {
     let kind: ProviderKind = .claude
 
-    /// The signed-in email rarely changes, so the profile endpoint is asked once per launch.
-    private let cachedEmail = OSAllocatedUnfairLock<String?>(initialState: nil)
+    private struct AccountCache {
+        let credentialID: SHA256.Digest
+        let email: String
+    }
 
-    private static let keychainService = "Claude Code-credentials"
+    /// Reuses the profile while the credential fingerprint matches the current login.
+    private let cachedEmail = OSAllocatedUnfairLock<AccountCache?>(initialState: nil)
+
+    private let readCredentials: @Sendable () throws -> Data
+    private let get: @Sendable (URL, [String: String]) async throws -> HTTP.Response
+    private let tokensToday: @Sendable () -> Int?
+
+    init(readCredentials: @escaping @Sendable () throws -> Data = {
+        try Keychain.genericPassword(service: "Claude Code-credentials")
+    }, get: @escaping @Sendable (URL, [String: String]) async throws -> HTTP.Response = {
+        try await HTTP.get($0, headers: $1)
+    }, tokensToday: @escaping @Sendable () -> Int? = {
+        TokenLog.claudeTokensToday(projectsDir: ClaudeProvider.projectsDir)
+    }) {
+        self.readCredentials = readCredentials
+        self.get = get
+        self.tokensToday = tokensToday
+    }
+
     private static let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
     /// Same UA family as the CLI so the request lands in the CLI's rate-limit bucket.
     private static let userAgent = "claude-code/2.1.261"
@@ -51,7 +72,7 @@ final class ClaudeProvider: UsageProvider, @unchecked Sendable {
     }
 
     private func request(_ url: URL, with credentials: Credentials) async throws -> HTTP.Response {
-        try await HTTP.get(url, headers: [
+        try await get(url, [
             "Authorization": "Bearer \(credentials.accessToken)",
             "anthropic-beta": "oauth-2025-04-20",
             "Accept": "application/json",
@@ -109,7 +130,7 @@ final class ClaudeProvider: UsageProvider, @unchecked Sendable {
             extras: extras,
             planLabel: credentials.plan,
             accountLabel: await accountEmail(with: credentials),
-            tokensToday: TokenLog.claudeTokensToday(projectsDir: Self.projectsDir),
+            tokensToday: tokensToday(),
             fetchedAt: Date(),
             sourceNote: nil
         )
@@ -117,20 +138,23 @@ final class ClaudeProvider: UsageProvider, @unchecked Sendable {
 
     /// `account.email` from the OAuth profile endpoint; nil (and retried next refresh) on any failure.
     private func accountEmail(with credentials: Credentials) async -> String? {
-        if let cached = cachedEmail.withLock({ $0 }) { return cached }
+        let credentialID = SHA256.hash(data: Data(credentials.accessToken.utf8))
+        if let email = cachedEmail.withLock({ cache in
+            cache?.credentialID == credentialID ? cache?.email : nil
+        }) { return email }
 
         guard let response = try? await request(Self.profileURL, with: credentials), response.status == 200,
               let root = try? JSON.object(from: response.data),
               let account = root["account"] as? [String: Any],
               let email = JSON.string(account["email"]), !email.isEmpty else { return nil }
-        cachedEmail.withLock { $0 = email }
+        cachedEmail.withLock { $0 = AccountCache(credentialID: credentialID, email: email) }
         return email
     }
 
     private func loadCredentials() throws -> Credentials {
         let data: Data
         do {
-            data = try Keychain.genericPassword(service: Self.keychainService)
+            data = try readCredentials()
         } catch let error as KeychainError where error.status == errSecItemNotFound {
             throw ProviderError.notLoggedIn("Run `claude` and log in once.")
         }

@@ -107,10 +107,10 @@ enum StatusTitleImage {
                 defer { origin += columnWidths[index] + providerGap }
                 if stackedLabels {
                     drawText(provider.displayName, in: NSRect(x: origin, y: 13.5, width: columnWidth, height: 8.5),
-                             font: labelFont, color: .labelColor)
+                             font: labelFont, color: .white)
                 } else if labelWidth > 0 {
                     drawText(provider.displayName, in: NSRect(x: origin, y: 0, width: nameWidths[index], height: 22),
-                             font: labelFont, color: .labelColor)
+                             font: labelFont, color: .white)
                 }
                 let indicatorX = stackedLabels ? origin + (columnWidth - indicatorWidth) / 2 : origin + labelWidth
                 let rect = NSRect(x: indicatorX, y: 0, width: indicatorWidth, height: 22)

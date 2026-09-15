@@ -6,21 +6,22 @@ struct CyclistFrame: Hashable, Sendable {
     let index: Int
 }
 
-/// Draws the menu bar cyclist from a single parameterised skeleton, so all four cadences
-/// stay on model: only the rider's posture, the crank speed and the frame rate differ.
+/// Draws the menu bar rider. Parked sits cross-legged asleep with no bike; the three
+/// riding cadences come off a single parameterised skeleton, so they stay on model:
+/// only the rider's posture, the crank speed and the frame rate differ.
 ///
 /// At 16pt the only things that read are wheel spin, how far the legs swing and how far
-/// the torso is folded over the bars, so the cadences are separated along those three
-/// axes rather than by detail.
+/// the torso is folded over the bars, so the riding cadences are separated along those
+/// three axes rather than by detail.
 enum CyclistSprite {
     /// Crank positions per pedal revolution.
     static let frameCount = 8
     static let size = NSSize(width: 20, height: 22)
 
-    /// Milliseconds a frame is held, per cadence.
+    /// How long a frame is held, per cadence. Parked spends a whole loop on one breath.
     static func frameInterval(for cadence: PedalCadence) -> TimeInterval {
         switch cadence {
-        case .idle: return .infinity
+        case .idle: return 0.45
         case .normal: return 0.125
         case .fast: return 0.070
         case .standing: return 0.050
@@ -54,10 +55,9 @@ enum CyclistSprite {
 
     private static func posture(for cadence: PedalCadence) -> Posture {
         switch cadence {
-        case .idle: return Posture(lean: 0.36, hipLift: 0, hipShift: 0, rock: 0)
-        case .normal: return Posture(lean: 0.52, hipLift: 0, hipShift: 0, rock: 0)
-        case .fast: return Posture(lean: 0.78, hipLift: 0.3, hipShift: 0.3, rock: 0)
         case .standing: return Posture(lean: 0.95, hipLift: 2.5, hipShift: 1.4, rock: 0.075)
+        case .fast: return Posture(lean: 0.78, hipLift: 0.3, hipShift: 0.3, rock: 0)
+        default: return Posture(lean: 0.52, hipLift: 0, hipShift: 0, rock: 0)
         }
     }
 
@@ -103,9 +103,9 @@ enum CyclistSprite {
 
     private static func draw(_ frame: CyclistFrame, tint: NSColor) {
         let cadence = frame.cadence
+        guard cadence != .idle else { return drawSleeper(frameIndex: frame.index, tint: tint) }
         let posture = posture(for: cadence)
-        // Idle parks the cranks level, one foot down.
-        let crank = cadence == .idle ? Self.parkedCrank : crankAngle(frameIndex: frame.index)
+        let crank = crankAngle(frameIndex: frame.index)
 
         guard let context = NSGraphicsContext.current else { return }
         context.saveGraphicsState()
@@ -129,7 +129,7 @@ enum CyclistSprite {
         let shoulder = CGPoint(x: hip.x + sin(posture.lean) * torso,
                                y: hip.y + cos(posture.lean) * torso)
 
-        drawBike(crank: crank, cadence: cadence, tint: tint)
+        drawBike(crank: crank, tint: tint)
         // The far leg sits behind the frame, the near leg in front of it.
         drawLeg(crank: crank + .pi, hip: hip, tint: tint.withAlphaComponent(0.38))
         drawRider(hip: hip, shoulder: shoulder, tint: tint)
@@ -138,7 +138,7 @@ enum CyclistSprite {
         context.restoreGraphicsState()
     }
 
-    private static func drawBike(crank: CGFloat, cadence: PedalCadence, tint: NSColor) {
+    private static func drawBike(crank: CGFloat, tint: NSColor) {
         // The bike is scenery: thin and faded, so the rider stays the subject.
         let frameColor = tint.withAlphaComponent(0.42)
 
@@ -156,7 +156,7 @@ enum CyclistSprite {
 
         // Two spokes per wheel: enough for the eye to track rotation, few enough that
         // they do not blur into a grey disc at 16pt.
-        let spin = cadence == .idle ? 0 : crank * gearRatio
+        let spin = crank * gearRatio
         for hub in [rearHub, frontHub] {
             let rim = NSBezierPath(ovalIn: NSRect(x: hub.x - wheelRadius, y: hub.y - wheelRadius,
                                                   width: wheelRadius * 2, height: wheelRadius * 2))
@@ -193,8 +193,6 @@ enum CyclistSprite {
         -CGFloat(frameIndex) / CGFloat(frameCount) * 2 * .pi
     }
 
-    /// Where the parked rider leaves the cranks: level, one foot down.
-    static let parkedCrank: CGFloat = .pi / 2
 
     static func pedal(crank: CGFloat) -> CGPoint {
         CGPoint(x: bottomBracket.x + cos(crank) * crankRadius,
@@ -251,5 +249,80 @@ enum CyclistSprite {
         leg.line(to: ankle)
         tint.setStroke()
         leg.stroke()
+    }
+
+    // MARK: - Sleeping
+
+    /// Parked is asleep: the bike is gone and the rider sits cross-legged facing the
+    /// viewer, the upper body rising on each breath and snores drifting off the head.
+    ///
+    /// Facing out rather than sideways, so the pose reads as its own thing beside the
+    /// three left-facing riding cadences, and so the silhouette stays upright — a body
+    /// laid flat spans the sprite four points tall and turns to a smudge at 16pt. It is
+    /// drawn straight into the sprite's own space, where the riding skeleton's mirror
+    /// would have reversed the "z"s.
+    private static func drawSleeper(frameIndex: Int, tint: NSColor) {
+        let phase = CGFloat(frameIndex) / CGFloat(frameCount)
+        // One slow breath per loop, carried by the whole upper body.
+        let breath = sin(phase * 2 * .pi) * 0.28
+
+        // The ground is scenery, as faint as the bike it replaces.
+        drawLimb([CGPoint(x: 3.6, y: 2.1), CGPoint(x: 16.4, y: 2.1)],
+                 width: 0.8, tint: tint.withAlphaComponent(0.42))
+
+        let hip = CGPoint(x: 10.0, y: 5.0 + breath * 0.4)
+        let neck = CGPoint(x: 10.0, y: 10.4 + breath)
+        let shoulderLeft = CGPoint(x: 7.4, y: 9.7 + breath)
+        let shoulderRight = CGPoint(x: 12.6, y: 9.7 + breath)
+
+        // Crossed legs: each shin folds back in under the other, the far one behind.
+        drawLimb([hip, CGPoint(x: 14.4, y: 3.9), CGPoint(x: 9.4, y: 2.9)],
+                 width: 1.3, tint: tint.withAlphaComponent(0.38))
+        drawLimb([hip, CGPoint(x: 5.6, y: 3.9), CGPoint(x: 10.6, y: 2.9)], width: 1.3, tint: tint)
+
+        drawLimb([hip, neck], width: 1.8, tint: tint)
+        drawLimb([shoulderLeft, shoulderRight], width: 1.4, tint: tint)
+        // The hands come to rest just clear of the knees, so the two do not merge.
+        drawLimb([shoulderLeft, CGPoint(x: 5.7, y: 7.3 + breath * 0.5), CGPoint(x: 6.2, y: 5.4)],
+                 width: 1.15, tint: tint)
+        drawLimb([shoulderRight, CGPoint(x: 14.3, y: 7.3 + breath * 0.5), CGPoint(x: 13.8, y: 5.4)],
+                 width: 1.15, tint: tint)
+
+        // Head-on the head carries the pose, so it runs larger than the riding one.
+        let headSize = headRadius + 0.65
+        let head = CGPoint(x: 10.0, y: 12.4 + breath)
+        tint.setFill()
+        NSBezierPath(ovalIn: NSRect(x: head.x - headSize, y: head.y - headSize,
+                                    width: headSize * 2, height: headSize * 2)).fill()
+
+        // Two snores in flight at once, half a loop apart. A third one would keep pace
+        // close enough to read as one zigzag chain rather than as separate breaths.
+        for offset in 0..<2 {
+            let travel = (phase + CGFloat(offset) / 2).truncatingRemainder(dividingBy: 1)
+            // Each one fades in clear of the head and out below the top of the sprite.
+            let fade = min(1, travel / 0.2) * min(1, (1 - travel) / 0.25)
+            drawSnore(at: CGPoint(x: 12.9 + travel * 1.4, y: 13.0 + breath + travel * 3.2),
+                      size: 1.25 + travel * 1.05, tint: tint.withAlphaComponent(fade))
+        }
+    }
+
+    /// One jointed stroke: a leg, an arm, the spine, the ground.
+    private static func drawLimb(_ points: [CGPoint], width: CGFloat, tint: NSColor) {
+        let path = NSBezierPath()
+        path.lineWidth = width
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        path.move(to: points[0])
+        for point in points.dropFirst() { path.line(to: point) }
+        tint.setStroke()
+        path.stroke()
+    }
+
+    /// A snore, drawn as the single zig of a "z" and sized to how far it has drifted.
+    private static func drawSnore(at origin: CGPoint, size: CGFloat, tint: NSColor) {
+        drawLimb([CGPoint(x: origin.x, y: origin.y + size),
+                  CGPoint(x: origin.x + size * 0.8, y: origin.y + size),
+                  origin,
+                  CGPoint(x: origin.x + size * 0.8, y: origin.y)], width: 0.95, tint: tint)
     }
 }

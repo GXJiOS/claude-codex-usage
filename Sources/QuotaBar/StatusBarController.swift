@@ -72,8 +72,7 @@ final class StatusBarController: NSObject, NSMenuDelegate {
             let elapsed = Date().timeIntervalSince(animationEpoch)
             for kind in ProviderKind.allCases {
                 let cadence = rates.cadences[kind] ?? .idle
-                let interval = CyclistSprite.frameInterval(for: cadence)
-                let index = interval.isFinite ? Int(elapsed / interval) % CyclistSprite.frameCount : 0
+                let index = Int(elapsed / CyclistSprite.frameInterval(for: cadence)) % CyclistSprite.frameCount
                 poses[kind] = CyclistFrame(cadence: cadence, index: index)
             }
         }
@@ -84,15 +83,14 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         button.title = ""
     }
 
-    /// Runs the animation at the faster of the two riders' cadences; a pair of parked
-    /// riders costs no timer at all.
+    /// Runs the animation at the faster of the two riders' cadences, so a rider pedalling
+    /// hard stays smooth while the other one sleeps through the same timer.
     private func scheduleAnimation(for cadences: [ProviderKind: PedalCadence]) {
         animationTimer?.invalidate()
         animationTimer = nil
         drawStatusImage()
         guard model.settings.showCyclist else { return }
-        let intervals = cadences.values.map { CyclistSprite.frameInterval(for: $0) }.filter { $0.isFinite }
-        guard var tick = intervals.min() else { return }
+        guard var tick = cadences.values.map({ CyclistSprite.frameInterval(for: $0) }).min() else { return }
         if ProcessInfo.processInfo.isLowPowerModeEnabled { tick *= 2 }
         // The timer must not own the controller, or its deinit would never run.
         let timer = Timer(timeInterval: tick, repeats: true) { [weak self] _ in

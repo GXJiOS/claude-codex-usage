@@ -1,5 +1,19 @@
 import AppKit
 
+/// A menu bar image split into the part that only changes with the numbers and the
+/// riders that change every frame, so animating costs one composite rather than a full
+/// re-measure and redraw of the indicators.
+struct StatusTitleLayout {
+    struct Rider {
+        let slot: NSRect
+        let tint: NSColor
+    }
+
+    let base: NSImage
+    let riders: [ProviderKind: Rider]
+    var size: NSSize { base.size }
+}
+
 /// Native menu bar indicators share the settings page's live preview renderer.
 enum StatusTitleImage {
     static func color(used: Double, mode: IndicatorColorMode, thresholds: UsageColorThresholds = .default) -> NSColor {
@@ -12,7 +26,27 @@ enum StatusTitleImage {
         }
     }
 
-    static func make(statuses: [ProviderKind: ProviderStatus], settings: Settings, mode: DisplayMode) -> NSImage {
+    /// Ready-to-show image, riders included. The status bar animates through
+    /// `layout` + `compose` instead, to keep the indicators off the per-frame path.
+    static func make(statuses: [ProviderKind: ProviderStatus], settings: Settings, mode: DisplayMode,
+                     cyclists: [ProviderKind: CyclistFrame] = [:]) -> NSImage {
+        compose(layout(statuses: statuses, settings: settings, mode: mode, withRiders: !cyclists.isEmpty),
+                poses: cyclists)
+    }
+
+    static func compose(_ layout: StatusTitleLayout, poses: [ProviderKind: CyclistFrame]) -> NSImage {
+        guard !poses.isEmpty, !layout.riders.isEmpty else { return layout.base }
+        return bitmap(size: layout.size) {
+            layout.base.draw(in: NSRect(origin: .zero, size: layout.size))
+            for (provider, rider) in layout.riders {
+                guard let pose = poses[provider] else { continue }
+                CyclistSprite.image(pose, tint: rider.tint).draw(in: rider.slot)
+            }
+        }
+    }
+
+    static func layout(statuses: [ProviderKind: ProviderStatus], settings: Settings, mode: DisplayMode,
+                       withRiders: Bool) -> StatusTitleLayout {
         let isBadge = settings.menuBarStyle == .percentageBadge
         let stackedLabels = settings.showLabels && (isBadge || settings.menuBarStyle == .bar || settings.menuBarStyle == .percentage)
         let font = NSFont.monospacedDigitSystemFont(ofSize: stackedLabels ? 10 : 12, weight: .semibold)
@@ -35,21 +69,42 @@ enum StatusTitleImage {
             case .ring: return 20
             }
         }
+        // The rider sits at the head of its provider's column.
+        let cyclistWidth: CGFloat = withRiders ? CyclistSprite.size.width + 2 : 0
         let nameWidths = ProviderKind.allCases.map {
             settings.showLabels ? ceil(($0.displayName as NSString).size(withAttributes: [.font: labelFont]).width) : 0
         }
         let labelWidths = nameWidths.map { !stackedLabels && !isBadge && settings.showLabels ? $0 + 4 : 0 }
         let columnWidths = indicatorWidths.indices.map {
-            stackedLabels ? max(indicatorWidths[$0], nameWidths[$0] + 2) : indicatorWidths[$0] + labelWidths[$0]
+            cyclistWidth + (stackedLabels ? max(indicatorWidths[$0], nameWidths[$0] + 2)
+                                          : indicatorWidths[$0] + labelWidths[$0])
         }
         let totalWidth = columnWidths.reduce(0, +) + providerGap
-        let image = NSImage(size: NSSize(width: totalWidth, height: 22), flipped: false) { _ in
+        let size = NSSize(width: totalWidth, height: 22)
+
+        var riders: [ProviderKind: StatusTitleLayout.Rider] = [:]
+        if withRiders {
             var origin: CGFloat = 0
             for (index, provider) in ProviderKind.allCases.enumerated() {
+                defer { origin += columnWidths[index] + providerGap }
+                // A provider with no numbers yet gets a plain rider rather than a colour
+                // that would read as a usage level.
+                let used = statuses[provider]?.snapshot.flatMap { provider.menuBarWindow(in: $0) }?.usedPercent
+                let tint = color(used: used ?? 0, mode: used == nil ? .monochrome : settings.colorMode,
+                                 thresholds: settings.usageColorThresholds)
+                riders[provider] = StatusTitleLayout.Rider(
+                    slot: NSRect(x: origin, y: 0, width: CyclistSprite.size.width, height: CyclistSprite.size.height),
+                    tint: tint)
+            }
+        }
+
+        let base = bitmap(size: size) {
+            var origin: CGFloat = cyclistWidth
+            for (index, provider) in ProviderKind.allCases.enumerated() {
                 let indicatorWidth = indicatorWidths[index]
-                let columnWidth = columnWidths[index]
+                let columnWidth = columnWidths[index] - cyclistWidth
                 let labelWidth = labelWidths[index]
-                defer { origin += columnWidth + providerGap }
+                defer { origin += columnWidths[index] + providerGap }
                 if stackedLabels {
                     drawText(provider.displayName, in: NSRect(x: origin, y: 13.5, width: columnWidth, height: 8.5),
                              font: labelFont, color: .labelColor)
@@ -129,8 +184,30 @@ enum StatusTitleImage {
                     }
                 }
             }
-            return true
         }
+        return StatusTitleLayout(base: base, riders: riders)
+    }
+
+    /// Renders into a real bitmap rather than a drawing handler, so redisplay blits the
+    /// pixels instead of re-running the drawing code. Dynamic colours are resolved against
+    /// the app's appearance, which is where the status item lives.
+    private static func bitmap(size: NSSize, draw: () -> Void) -> NSImage {
+        let scale: CGFloat = 2
+        guard size.width > 0, size.height > 0,
+              let rep = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                         pixelsWide: Int(size.width * scale), pixelsHigh: Int(size.height * scale),
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                         colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else {
+            return NSImage(size: size)
+        }
+        rep.size = size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        let appearance = NSApp?.effectiveAppearance ?? NSAppearance.currentDrawing()
+        appearance.performAsCurrentDrawingAppearance(draw)
+        NSGraphicsContext.restoreGraphicsState()
+        let image = NSImage(size: size)
+        image.addRepresentation(rep)
         image.isTemplate = false
         return image
     }

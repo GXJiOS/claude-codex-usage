@@ -5,6 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBar: StatusBarController?
     private var window: MainWindowController?
     private var notifications: UsageNotifications?
+    private var rates: UsageRateMonitor?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let preview = CommandLine.arguments.contains("--preview")
@@ -26,10 +27,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let window = MainWindowController(store: store, model: model, notifications: notifications)
         self.window = window
-        let statusBar = StatusBarController(store: store, model: model)
+        // Preview runs against fixtures, so its riders stay parked rather than reading
+        // this Mac's real transcripts.
+        let rates = UsageRateMonitor(thresholds: model.settings.cadenceThresholds, isLive: !preview)
+        self.rates = rates
+        let statusBar = StatusBarController(store: store, model: model, rates: rates)
         statusBar.onOpenWindow = { [weak window] in window?.show() }
         self.statusBar = statusBar
         store.startPolling()
+        rates.start()
         if preview, let page = argument("--preview-page").flatMap(SettingsSection.init(rawValue:)) { model.page = page }
         if preview, let provider = argument("--preview-provider").flatMap(ProviderKind.init(rawValue:)) { model.selectedProvider = provider }
         if CommandLine.arguments.contains("--settings") { window.show() }

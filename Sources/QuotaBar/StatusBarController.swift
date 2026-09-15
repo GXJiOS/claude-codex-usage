@@ -8,8 +8,15 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private let menu = NSMenu()
     private let model: SettingsModel
+    private let rates: UsageRateMonitor
     private var subscriptions = Set<AnyCancellable>()
     private var mode: DisplayMode { model.displayMode }
+    /// Frame phase is taken from elapsed time, so a late timer tick lands the rider where
+    /// it should be rather than slowing the whole animation down.
+    private let animationEpoch = Date()
+    private var animationTimer: Timer?
+    /// Rebuilt when the numbers or preferences change, composited every frame.
+    private var titleLayout: StatusTitleLayout?
 
     /// Set by AppDelegate; opens the settings and history window.
     var onOpenWindow: (() -> Void)?
@@ -19,9 +26,10 @@ final class StatusBarController: NSObject, NSMenuDelegate {
     /// Percentages on the colour chips read larger than the surrounding row text.
     private let chipFont = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .semibold)
 
-    init(store: UsageStore, model: SettingsModel) {
+    init(store: UsageStore, model: SettingsModel, rates: UsageRateMonitor) {
         self.store = store
         self.model = model
+        self.rates = rates
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
         menu.delegate = self
@@ -33,18 +41,66 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         store.$statuses.receive(on: DispatchQueue.main).sink { [weak self] _ in self?.render() }.store(in: &subscriptions)
         store.$lastRefresh.receive(on: DispatchQueue.main).sink { [weak self] _ in self?.render() }.store(in: &subscriptions)
         model.objectWillChange.receive(on: DispatchQueue.main).sink { [weak self] _ in self?.render() }.store(in: &subscriptions)
+        // A sample every few seconds usually reports the same cadence; only a change
+        // needs to re-arm the animation.
+        rates.$cadences.removeDuplicates().receive(on: DispatchQueue.main).sink { [weak self] cadences in
+            self?.scheduleAnimation(for: cadences)
+        }.store(in: &subscriptions)
         render()
     }
 
+    deinit {
+        animationTimer?.invalidate()
+    }
+
     func render() {
-        if let button = statusItem.button {
-            button.image = StatusTitleImage.make(statuses: store.statuses, settings: model.settings, mode: mode)
-            button.setAccessibilityLabel(L("Claude and Codex usage"))
-            button.imagePosition = .imageOnly
-            button.imageScaling = .scaleNone
-            button.title = ""
-        }
+        rates.apply(thresholds: model.settings.cadenceThresholds)
+        rates.setEnabled(model.settings.showCyclist)
+        titleLayout = StatusTitleImage.layout(statuses: store.statuses, settings: model.settings,
+                                              mode: mode, withRiders: model.settings.showCyclist)
+        scheduleAnimation(for: rates.cadences)
         rebuildMenu()
+    }
+
+    private func drawStatusImage() {
+        guard let button = statusItem.button else { return }
+        let layout = titleLayout ?? StatusTitleImage.layout(statuses: store.statuses, settings: model.settings,
+                                                            mode: mode, withRiders: model.settings.showCyclist)
+        titleLayout = layout
+        var poses: [ProviderKind: CyclistFrame] = [:]
+        if model.settings.showCyclist {
+            let elapsed = Date().timeIntervalSince(animationEpoch)
+            for kind in ProviderKind.allCases {
+                let cadence = rates.cadences[kind] ?? .idle
+                let interval = CyclistSprite.frameInterval(for: cadence)
+                let index = interval.isFinite ? Int(elapsed / interval) % CyclistSprite.frameCount : 0
+                poses[kind] = CyclistFrame(cadence: cadence, index: index)
+            }
+        }
+        button.image = StatusTitleImage.compose(layout, poses: poses)
+        button.setAccessibilityLabel(L("Claude and Codex usage"))
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleNone
+        button.title = ""
+    }
+
+    /// Runs the animation at the faster of the two riders' cadences; a pair of parked
+    /// riders costs no timer at all.
+    private func scheduleAnimation(for cadences: [ProviderKind: PedalCadence]) {
+        animationTimer?.invalidate()
+        animationTimer = nil
+        drawStatusImage()
+        guard model.settings.showCyclist else { return }
+        let intervals = cadences.values.map { CyclistSprite.frameInterval(for: $0) }.filter { $0.isFinite }
+        guard var tick = intervals.min() else { return }
+        if ProcessInfo.processInfo.isLowPowerModeEnabled { tick *= 2 }
+        // The timer must not own the controller, or its deinit would never run.
+        let timer = Timer(timeInterval: tick, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.drawStatusImage() }
+        }
+        // Common mode keeps the rider pedalling while the menu is open.
+        RunLoop.main.add(timer, forMode: .common)
+        animationTimer = timer
     }
 
     // MARK: NSMenuDelegate

@@ -17,6 +17,9 @@ struct Settings: Sendable, Equatable, Codable {
     var usageColorThresholds: UsageColorThresholds = .default
     var theme: AppTheme = .system
     var showLabels = true
+    /// Menu bar cyclist whose pedalling speed tracks live token throughput.
+    var showCyclist = true
+    var cadenceThresholds: CadenceThresholds = .default
     var timeDisplay: ResetTimeDisplay = .both
     var showTokens = true
     var showModels = true
@@ -65,7 +68,7 @@ extension Settings {
         case refreshInterval, historyRetentionDays, menuBarStyle, colorMode, theme, showLabels
         case timeDisplay, showTokens, showModels, showResetCredits, notificationsEnabled
         case notificationThresholds, notificationSound, notifyOnReset, language
-        case usageColorThresholds
+        case usageColorThresholds, showCyclist, cadenceThresholds
     }
 
     init(from decoder: Decoder) throws {
@@ -79,6 +82,8 @@ extension Settings {
         usageColorThresholds = (try? values.decode(UsageColorThresholds.self, forKey: .usageColorThresholds)) ?? .default
         theme = try values.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .system
         showLabels = try values.decodeIfPresent(Bool.self, forKey: .showLabels) ?? true
+        showCyclist = try values.decodeIfPresent(Bool.self, forKey: .showCyclist) ?? true
+        cadenceThresholds = (try? values.decode(CadenceThresholds.self, forKey: .cadenceThresholds)) ?? .default
         timeDisplay = try values.decodeIfPresent(ResetTimeDisplay.self, forKey: .timeDisplay) ?? .both
         showTokens = try values.decodeIfPresent(Bool.self, forKey: .showTokens) ?? true
         showModels = try values.decodeIfPresent(Bool.self, forKey: .showModels) ?? true

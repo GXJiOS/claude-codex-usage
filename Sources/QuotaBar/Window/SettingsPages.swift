@@ -8,8 +8,12 @@ struct AppearancePage: View {
     var body: some View {
         SettingsPage(title: "Appearance", subtitle: "Customize how Claude and Codex appear in your menu bar") {
             SettingsCard("Live preview", subtitle: "Example usage · Claude 39% · Codex 60%") {
-                Image(nsImage: StatusTitleImage.make(statuses: PreviewData.statuses(), settings: model.settings,
-                                                     mode: model.displayMode))
+                Image(nsImage: StatusTitleImage.make(
+                    statuses: PreviewData.statuses(), settings: model.settings, mode: model.displayMode,
+                    cyclists: model.settings.showCyclist
+                        ? [.claude: CyclistFrame(cadence: .normal, index: 2),
+                           .codex: CyclistFrame(cadence: .standing, index: 5)]
+                        : [:]))
                     .frame(maxWidth: .infinity).frame(height: 38)
                     .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05)))
                     .accessibilityLabel(L("Menu bar style preview"))
@@ -55,6 +59,7 @@ struct AppearancePage: View {
                 }
             }
             UsageColorSettingsCard()
+            CyclistSettingsCard()
         }
     }
 
@@ -346,6 +351,82 @@ struct AccountPage: View {
                     }
                 }
             }
+        }
+    }
+}
+
+
+/// Cadence thresholds, with the four poses shown at the speeds that trigger them.
+private struct CyclistSettingsCard: View {
+    @EnvironmentObject private var model: SettingsModel
+    private var thresholds: CadenceThresholds { model.settings.cadenceThresholds }
+
+    private func binding(_ keyPath: KeyPath<CadenceThresholds, Int>,
+                         _ make: @escaping (Int) -> CadenceThresholds) -> Binding<Int> {
+        Binding(get: { thresholds[keyPath: keyPath] }, set: { model.settings.cadenceThresholds = make($0) })
+    }
+
+    var body: some View {
+        SettingsCard("Menu Bar Cyclist", subtitle: "Pedals at the speed each provider is currently burning tokens.") {
+            VStack(spacing: 14) {
+                settingToggle("Show cyclist", "One rider per provider, ahead of its indicator.",
+                              $model.settings.showCyclist)
+                if model.settings.showCyclist {
+                    Divider()
+                    HStack(spacing: 8) {
+                        ForEach(PedalCadence.allCases, id: \.self) { cadence in
+                            VStack(spacing: 5) {
+                                Image(nsImage: CyclistSprite.rendered(CyclistFrame(cadence: cadence, index: 2),
+                                                                     tint: .labelColor, scale: 3))
+                                    .resizable().scaledToFit().frame(height: 40)
+                                    .frame(maxWidth: .infinity)
+                                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.04)))
+                                Text(cadence.title).font(.system(size: 10))
+                                Text(range(for: cadence)).font(.system(size: 9)).foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    Divider()
+                    SettingRow(title: "Starts pedalling at", detail: L("Below this the rider is parked.")) {
+                        Stepper(value: binding(\.normalFrom, { CadenceThresholds(normalFrom: $0, fastFrom: thresholds.fastFrom, standingFrom: thresholds.standingFrom) }),
+                                in: 100...(thresholds.fastFrom - 100), step: 100) {
+                            Text(rate(thresholds.normalFrom)).monospacedDigit()
+                        }.frame(width: 135).accessibilityLabel(L("Starts pedalling at"))
+                    }
+                    SettingRow(title: "Speeds up at", detail: L("Torso folds down over the bars.")) {
+                        Stepper(value: binding(\.fastFrom, { CadenceThresholds(normalFrom: thresholds.normalFrom, fastFrom: $0, standingFrom: thresholds.standingFrom) }),
+                                in: (thresholds.normalFrom + 100)...(thresholds.standingFrom - 1000), step: 1000) {
+                            Text(rate(thresholds.fastFrom)).monospacedDigit()
+                        }.frame(width: 135).accessibilityLabel(L("Speeds up at"))
+                    }
+                    SettingRow(title: "Stands up at", detail: L("Out of the saddle, rocking the bike.")) {
+                        Stepper(value: binding(\.standingFrom, { CadenceThresholds(normalFrom: thresholds.normalFrom, fastFrom: thresholds.fastFrom, standingFrom: $0) }),
+                                in: (thresholds.fastFrom + 1000)...200_000, step: 1000) {
+                            Text(rate(thresholds.standingFrom)).monospacedDigit()
+                        }.frame(width: 135).accessibilityLabel(L("Stands up at"))
+                    }
+                    HStack {
+                        Text(L("Counts tokens written to this Mac's transcripts, excluding cache reads."))
+                            .font(Typography.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 12)
+                        Button(L("Restore Defaults")) { model.settings.cadenceThresholds = .default }
+                            .disabled(thresholds == .default)
+                    }
+                }
+            }
+        }
+    }
+
+    private func rate(_ tokens: Int) -> String {
+        tokens >= 1_000 ? "\(tokens / 1_000)k/min" : "\(tokens)/min"
+    }
+
+    private func range(for cadence: PedalCadence) -> String {
+        switch cadence {
+        case .idle: return "< \(rate(thresholds.normalFrom))"
+        case .normal: return "\(rate(thresholds.normalFrom))+"
+        case .fast: return "\(rate(thresholds.fastFrom))+"
+        case .standing: return "\(rate(thresholds.standingFrom))+"
         }
     }
 }

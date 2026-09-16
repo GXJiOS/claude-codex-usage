@@ -4,11 +4,20 @@ import AppKit
 struct CyclistFrame: Hashable, Sendable {
     let cadence: PedalCadence
     let index: Int
+    /// Which parked pose is drawn; only consulted when the cadence is `.idle`.
+    let parked: ParkedPose
+
+    init(cadence: PedalCadence, index: Int, parked: ParkedPose = .sleeping) {
+        self.cadence = cadence
+        self.index = index
+        self.parked = parked
+    }
 }
 
-/// Draws the menu bar rider. Parked sits cross-legged asleep with no bike; the three
-/// riding cadences come off a single parameterised skeleton, so they stay on model:
-/// only the rider's posture, the crank speed and the frame rate differ.
+/// Draws the menu bar rider. Parked sits cross-legged with no bike, either asleep or
+/// knocking a wooden fish; the three riding cadences come off a single parameterised
+/// skeleton, so they stay on model: only the rider's posture, the crank speed and the
+/// frame rate differ.
 ///
 /// At 16pt the only things that read are wheel spin, how far the legs swing and how far
 /// the torso is folded over the bars, so the riding cadences are separated along those
@@ -18,10 +27,11 @@ enum CyclistSprite {
     static let frameCount = 8
     static let size = NSSize(width: 20, height: 22)
 
-    /// How long a frame is held, per cadence. Parked spends a whole loop on one breath.
-    static func frameInterval(for cadence: PedalCadence) -> TimeInterval {
+    /// How long a frame is held, per cadence. Asleep spends a whole loop on one breath;
+    /// the wooden fish gets one strike per loop, at a monk's unhurried tempo.
+    static func frameInterval(for cadence: PedalCadence, parked: ParkedPose) -> TimeInterval {
         switch cadence {
-        case .idle: return 0.45
+        case .idle: return parked == .woodenFish ? 0.15 : 0.45
         case .normal: return 0.125
         case .fast: return 0.070
         case .standing: return 0.050
@@ -70,8 +80,8 @@ enum CyclistSprite {
         // so the cache is keyed on the components it actually resolves to right now, and
         // the sprite is drawn in that same resolved colour.
         let solid = tint.usingColorSpace(.sRGB) ?? tint
-        let key = String(format: "%@-%d-%.3f-%.3f-%.3f-%.3f", frame.cadence.rawValue, frame.index,
-                         solid.redComponent, solid.greenComponent,
+        let key = String(format: "%@-%@-%d-%.3f-%.3f-%.3f-%.3f", frame.cadence.rawValue, frame.parked.rawValue,
+                         frame.index, solid.redComponent, solid.greenComponent,
                          solid.blueComponent, solid.alphaComponent) as NSString
         if let cached = cache.object(forKey: key) { return cached }
         let image = rendered(frame, tint: solid, scale: 2)
@@ -103,7 +113,12 @@ enum CyclistSprite {
 
     private static func draw(_ frame: CyclistFrame, tint: NSColor) {
         let cadence = frame.cadence
-        guard cadence != .idle else { return drawSleeper(frameIndex: frame.index, tint: tint) }
+        guard cadence != .idle else {
+            switch frame.parked {
+            case .sleeping: return drawSleeper(frameIndex: frame.index, tint: tint)
+            case .woodenFish: return drawMonk(frameIndex: frame.index, tint: tint)
+            }
+        }
         let posture = posture(for: cadence)
         let crank = crankAngle(frameIndex: frame.index)
 
@@ -304,6 +319,94 @@ enum CyclistSprite {
             drawSnore(at: CGPoint(x: 12.9 + travel * 1.4, y: 13.0 + breath + travel * 3.2),
                       size: 1.25 + travel * 1.05, tint: tint.withAlphaComponent(fade))
         }
+    }
+
+    // MARK: - Wooden fish
+
+    /// Parked at the wooden fish: the rider sits cross-legged in profile facing left, the
+    /// way the riding cadences do, with the fish on the ground in front of the knees and
+    /// the near arm swinging a mallet down onto it once a loop. "功德+1" pops above the
+    /// scene on the strike and drifts up.
+    ///
+    /// Built facing left directly in the sprite's own space, so the text is not mirrored.
+    /// It runs across the top band, above the head and the raised mallet, because at four
+    /// glyphs it needs most of the sprite's width to stay legible at all.
+    private static func drawMonk(frameIndex: Int, tint: NSColor) {
+        // Swing per frame: raised, falling, strike, then a rebound that settles early so
+        // the mallet hangs still before the next strike.
+        let swings: [CGFloat] = [0, 0.55, 1, 0.7, 0.35, 0.1, 0, 0]
+        let strikeFrame = 2
+        let swing = swings[frameIndex % frameCount]
+
+        drawLimb([CGPoint(x: 0.8, y: 2.1), CGPoint(x: 16.4, y: 2.1)],
+                 width: 0.8, tint: tint.withAlphaComponent(0.42))
+
+        // The upper body bows forward into the strike.
+        let hip = CGPoint(x: 12.6, y: 5.0)
+        let neck = CGPoint(x: 12.0 - swing * 0.3, y: 10.3 - swing * 0.3)
+
+        // Legs fold forward under the body, the far one behind and faded.
+        drawLimb([hip, CGPoint(x: 9.9, y: 4.1), CGPoint(x: 12.8, y: 2.9)],
+                 width: 1.3, tint: tint.withAlphaComponent(0.38))
+        // The fish flattens for the one frame the mallet lands.
+        drawWoodenFish(centerX: 5.0, squash: max(0, (swing - 0.8) / 0.2), tint: tint)
+        drawLimb([hip, CGPoint(x: 9.2, y: 3.7), CGPoint(x: 11.6, y: 2.9)], width: 1.3, tint: tint)
+        drawLimb([hip, neck], width: 1.8, tint: tint)
+
+        // A wrist-height tap: the forearm pivots at the elbow from a little above level to
+        // pointing down at the fish, and the mallet tips from nose-high to level with it,
+        // so the head lands square on the fish's top.
+        let elbow = CGPoint(x: 10.2, y: 7.8)
+        let forearmAngle = (140 + 55 * swing) * .pi / 180
+        let hand = CGPoint(x: elbow.x + cos(forearmAngle) * 2.3, y: elbow.y + sin(forearmAngle) * 2.3)
+        let malletAngle = forearmAngle + (25 - 35 * swing) * .pi / 180
+        let malletHead = CGPoint(x: hand.x + cos(malletAngle) * 2.4, y: hand.y + sin(malletAngle) * 2.4)
+        drawLimb([neck, elbow, hand], width: 1.15, tint: tint)
+        drawLimb([hand, malletHead], width: 0.8, tint: tint.withAlphaComponent(0.75))
+        tint.setFill()
+        NSBezierPath(ovalIn: NSRect(x: malletHead.x - 0.85, y: malletHead.y - 0.85, width: 1.7, height: 1.7)).fill()
+
+        // The head sits a touch ahead of the neck, looking down at the fish.
+        let headSize = headRadius + 0.65
+        let head = CGPoint(x: neck.x - 0.3, y: neck.y + 2.0)
+        NSBezierPath(ovalIn: NSRect(x: head.x - headSize, y: head.y - headSize,
+                                    width: headSize * 2, height: headSize * 2)).fill()
+
+        // Merit pops on the strike and drifts up, gone just before the next one.
+        let life = CGFloat((frameIndex - strikeFrame + frameCount) % frameCount) / CGFloat(frameCount)
+        let fade = min(1, (life + 0.15) / 0.3) * min(1, (1 - life) / 0.35)
+        drawMerit(bottomCenter: CGPoint(x: 10.0, y: 14.2 + life * 1.8), tint: tint.withAlphaComponent(fade))
+    }
+
+    /// The wooden fish: a rounded block resting on the ground with its slit cut out, more
+    /// solid than the bike since it is what the rider acts on. Squash flattens and widens
+    /// it in place, bottom anchored, for the strike.
+    private static func drawWoodenFish(centerX: CGFloat, squash: CGFloat, tint: NSColor) {
+        let width = 7.2 * (1 + squash * 0.1)
+        let height = 5.2 * (1 - squash * 0.15)
+        let bottom: CGFloat = 2.4
+        let body = NSBezierPath(ovalIn: NSRect(x: centerX - width / 2, y: bottom, width: width, height: height))
+        body.windingRule = .evenOdd
+        body.appendRoundedRect(NSRect(x: centerX - 2.3, y: bottom + 1.0, width: 4.6, height: 1.1),
+                               xRadius: 0.55, yRadius: 0.55)
+        tint.withAlphaComponent(0.85).setFill()
+        body.fill()
+    }
+
+    /// "功德+1", sized to the sprite's width and centred over `bottomCenter`.
+    private static func drawMerit(bottomCenter: CGPoint, tint: NSColor) {
+        let text = "功德+1" as NSString
+        let maxWidth = size.width - 1
+        var fontSize: CGFloat = 5.5
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: fontSize, weight: .medium), .foregroundColor: tint]
+        var measured = text.size(withAttributes: attributes)
+        if measured.width > maxWidth {
+            fontSize *= maxWidth / measured.width
+            attributes[.font] = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+            measured = text.size(withAttributes: attributes)
+        }
+        text.draw(at: NSPoint(x: bottomCenter.x - measured.width / 2, y: bottomCenter.y), withAttributes: attributes)
     }
 
     /// One jointed stroke: a leg, an arm, the spine, the ground.

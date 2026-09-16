@@ -242,6 +242,10 @@
 "One rider per provider, ahead of its indicator." = "每家一个，位于用量指示器前方。";
 "Starts pedalling at" = "起步速率";
 "Below this the rider is parked." = "低于此速率时小人停车。";
+"Parked pose" = "停车姿势";
+"Asleep" = "睡觉";
+"Wooden fish" = "敲木鱼";
+"Asleep, or knocking a wooden fish for +1 merit a strike." = "睡觉，或敲木鱼，一下功德+1。";
 "Speeds up at" = "加速速率";
 "Torso folds down over the bars." = "上身压低伏在车把上。";
 "Stands up at" = "站立速率";

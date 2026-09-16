@@ -10,25 +10,27 @@ final class SpritePreview: XCTestCase {
         }
         let zoom: CGFloat = 8
         let cell = CyclistSprite.size
-        let cadences = PedalCadence.allCases
+        // One row per cadence, plus the second parked pose.
+        let rows: [(label: String, cadence: PedalCadence, parked: ParkedPose)] =
+            PedalCadence.allCases.map { ($0.rawValue, $0, .sleeping) } + [("woodenFish", .idle, .woodenFish)]
         let cols = CyclistSprite.frameCount
         let labelWidth: CGFloat = 90
         let sheet = NSSize(width: labelWidth + CGFloat(cols) * cell.width * zoom,
-                           height: CGFloat(cadences.count) * cell.height * zoom + 60)
+                           height: CGFloat(rows.count) * cell.height * zoom + 60)
 
         let image = NSImage(size: sheet)
         image.lockFocus()
         NSColor.white.setFill()
         NSRect(origin: .zero, size: sheet).fill()
 
-        for (row, cadence) in cadences.enumerated() {
+        for (row, pose) in rows.enumerated() {
             let y = sheet.height - 60 - CGFloat(row + 1) * cell.height * zoom
-            let label = "\(cadence.rawValue)" as NSString
+            let label = pose.label as NSString
             label.draw(at: NSPoint(x: 8, y: y + cell.height * zoom / 2),
                        withAttributes: [.font: NSFont.systemFont(ofSize: 15),
                                         .foregroundColor: NSColor.black])
             for col in 0..<cols {
-                let frame = CyclistFrame(cadence: cadence, index: col)
+                let frame = CyclistFrame(cadence: pose.cadence, index: col, parked: pose.parked)
                 let sprite = CyclistSprite.rendered(frame, tint: .black, scale: zoom)
                 let rect = NSRect(x: labelWidth + CGFloat(col) * cell.width * zoom, y: y,
                                   width: cell.width * zoom, height: cell.height * zoom)
@@ -41,13 +43,14 @@ final class SpritePreview: XCTestCase {
         // Actual size, as the menu bar shows it, on both backgrounds.
         for (index, background) in [NSColor.white, NSColor(white: 0.15, alpha: 1)].enumerated() {
             let stripY = sheet.height - 56 + CGFloat(index) * 26
-            let stripRect = NSRect(x: labelWidth, y: stripY, width: 340, height: 24)
+            let stripRect = NSRect(x: labelWidth, y: stripY, width: 410, height: 24)
             background.setFill()
             stripRect.fill()
             var x = labelWidth + 6
-            for cadence in cadences {
+            for pose in rows {
                 for offset in 0..<3 {
-                    let sprite = CyclistSprite.image(CyclistFrame(cadence: cadence, index: offset * 2),
+                    let sprite = CyclistSprite.image(CyclistFrame(cadence: pose.cadence, index: offset * 2,
+                                                                  parked: pose.parked),
                                                     tint: index == 0 ? .black : .white)
                     sprite.draw(in: NSRect(x: x, y: stripY + 1, width: cell.width, height: cell.height))
                     x += cell.width + 1

@@ -70,10 +70,12 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         var poses: [ProviderKind: CyclistFrame] = [:]
         if model.settings.showCyclist {
             let elapsed = Date().timeIntervalSince(animationEpoch)
+            let parked = model.settings.parkedPose
             for kind in ProviderKind.allCases {
                 let cadence = rates.cadences[kind] ?? .idle
-                let index = Int(elapsed / CyclistSprite.frameInterval(for: cadence)) % CyclistSprite.frameCount
-                poses[kind] = CyclistFrame(cadence: cadence, index: index)
+                let interval = CyclistSprite.frameInterval(for: cadence, parked: parked)
+                let index = Int(elapsed / interval) % CyclistSprite.frameCount
+                poses[kind] = CyclistFrame(cadence: cadence, index: index, parked: parked)
             }
         }
         button.image = StatusTitleImage.compose(layout, poses: poses)
@@ -90,7 +92,8 @@ final class StatusBarController: NSObject, NSMenuDelegate {
         animationTimer = nil
         drawStatusImage()
         guard model.settings.showCyclist else { return }
-        guard var tick = cadences.values.map({ CyclistSprite.frameInterval(for: $0) }).min() else { return }
+        let parked = model.settings.parkedPose
+        guard var tick = cadences.values.map({ CyclistSprite.frameInterval(for: $0, parked: parked) }).min() else { return }
         if ProcessInfo.processInfo.isLowPowerModeEnabled { tick *= 2 }
         // The timer must not own the controller, or its deinit would never run.
         let timer = Timer(timeInterval: tick, repeats: true) { [weak self] _ in

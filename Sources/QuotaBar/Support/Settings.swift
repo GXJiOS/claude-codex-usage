@@ -20,6 +20,8 @@ struct Settings: Sendable, Equatable, Codable {
     /// Menu bar cyclist whose pedalling speed tracks live token throughput.
     var showCyclist = true
     var cadenceThresholds: CadenceThresholds = .default
+    /// What the rider does below the starting rate.
+    var parkedPose: ParkedPose = .sleeping
     var timeDisplay: ResetTimeDisplay = .both
     var showTokens = true
     var showModels = true
@@ -68,7 +70,7 @@ extension Settings {
         case refreshInterval, historyRetentionDays, menuBarStyle, colorMode, theme, showLabels
         case timeDisplay, showTokens, showModels, showResetCredits, notificationsEnabled
         case notificationThresholds, notificationSound, notifyOnReset, language
-        case usageColorThresholds, showCyclist, cadenceThresholds
+        case usageColorThresholds, showCyclist, cadenceThresholds, parkedPose
     }
 
     init(from decoder: Decoder) throws {
@@ -84,6 +86,7 @@ extension Settings {
         showLabels = try values.decodeIfPresent(Bool.self, forKey: .showLabels) ?? true
         showCyclist = try values.decodeIfPresent(Bool.self, forKey: .showCyclist) ?? true
         cadenceThresholds = (try? values.decode(CadenceThresholds.self, forKey: .cadenceThresholds)) ?? .default
+        parkedPose = try values.decodeIfPresent(ParkedPose.self, forKey: .parkedPose) ?? .sleeping
         timeDisplay = try values.decodeIfPresent(ResetTimeDisplay.self, forKey: .timeDisplay) ?? .both
         showTokens = try values.decodeIfPresent(Bool.self, forKey: .showTokens) ?? true
         showModels = try values.decodeIfPresent(Bool.self, forKey: .showModels) ?? true
@@ -132,6 +135,18 @@ enum MenuBarStyle: String, Codable, CaseIterable, Sendable {
         case .percentage: return L("Percentage")
         case .percentageBadge: return L("Badge Percentage")
         case .ring: return L("Ring")
+        }
+    }
+}
+
+/// The parked rider's pastime: dozing, or knocking a wooden fish for merit.
+enum ParkedPose: String, Codable, CaseIterable, Sendable {
+    case sleeping, woodenFish
+
+    var title: String {
+        switch self {
+        case .sleeping: return L("Asleep")
+        case .woodenFish: return L("Wooden fish")
         }
     }
 }

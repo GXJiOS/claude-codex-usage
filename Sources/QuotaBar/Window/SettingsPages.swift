@@ -376,7 +376,8 @@ private struct CyclistSettingsCard: View {
                     HStack(spacing: 8) {
                         ForEach(PedalCadence.allCases, id: \.self) { cadence in
                             VStack(spacing: 5) {
-                                Image(nsImage: CyclistSprite.rendered(CyclistFrame(cadence: cadence, index: 2),
+                                Image(nsImage: CyclistSprite.rendered(CyclistFrame(cadence: cadence, index: 2,
+                                                                                   parked: model.settings.parkedPose),
                                                                      tint: .labelColor, scale: 3))
                                     .resizable().scaledToFit().frame(height: 40)
                                     .frame(maxWidth: .infinity)
@@ -387,6 +388,11 @@ private struct CyclistSettingsCard: View {
                         }
                     }
                     Divider()
+                    SettingRow(title: "Parked pose", detail: L("Asleep, or knocking a wooden fish for +1 merit a strike.")) {
+                        Picker(L("Parked pose"), selection: $model.settings.parkedPose) {
+                            ForEach(ParkedPose.allCases, id: \.self) { Text($0.title).tag($0) }
+                        }.labelsHidden().frame(width: 130)
+                    }
                     SettingRow(title: "Starts pedalling at", detail: L("Below this the rider is parked.")) {
                         Stepper(value: binding(\.normalFrom, { CadenceThresholds(normalFrom: $0, fastFrom: thresholds.fastFrom, standingFrom: thresholds.standingFrom) }),
                                 in: 100...(thresholds.fastFrom - 100), step: 100) {

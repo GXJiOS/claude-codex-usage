@@ -66,7 +66,7 @@ enum CyclistSprite {
     private static func posture(for cadence: PedalCadence) -> Posture {
         switch cadence {
         case .standing: return Posture(lean: 0.95, hipLift: 2.5, hipShift: 1.4, rock: 0.075)
-        case .fast: return Posture(lean: 0.78, hipLift: 0.3, hipShift: 0.3, rock: 0)
+        case .fast: return Posture(lean: 0.85, hipLift: 0.3, hipShift: 0.3, rock: 0)
         default: return Posture(lean: 0.52, hipLift: 0, hipShift: 0, rock: 0)
         }
     }

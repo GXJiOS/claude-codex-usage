@@ -6,7 +6,7 @@ import Combine
 @MainActor
 final class MainWindowController: NSWindowController {
     private var languageSubscription: AnyCancellable?
-    init(store: UsageStore, model: SettingsModel, notifications: UsageNotifications) {
+    init(store: UsageStore, model: SettingsModel, notifications: UsageNotifications, statusBar: StatusBarController) {
         let window = SettingsWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 750),
                                     styleMask: [.borderless, .miniaturizable], backing: .buffered, defer: false)
         window.title = L("QuotaBar Settings")
@@ -17,7 +17,8 @@ final class MainWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.isRestorable = false
         window.contentView = NSHostingView(rootView: SettingsRootView()
-            .environmentObject(store).environmentObject(model).environmentObject(notifications))
+            .environmentObject(store).environmentObject(model).environmentObject(notifications)
+            .environmentObject(statusBar))
         window.contentView?.wantsLayer = true
         window.contentView?.layer?.cornerRadius = 10
         window.contentView?.layer?.masksToBounds = true

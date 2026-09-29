@@ -251,3 +251,12 @@
 "Stands up at" = "Stands up at";
 "Out of the saddle, rocking the bike." = "Out of the saddle, rocking the bike.";
 "Counts tokens written to this Mac's transcripts, excluding cache reads." = "Counts tokens written to this Mac's transcripts, excluding cache reads.";
+"Screenshot" = "Screenshot";
+"Start recording" = "Start recording";
+"Stop recording" = "Stop recording";
+"Recording %@" = "Recording %@";
+"Saving preview…" = "Saving preview…";
+"Save preview" = "Save preview";
+"Preview export failed" = "Preview export failed";
+"Could not render the preview." = "Could not render the preview.";
+"Could not encode the preview video." = "Could not encode the preview video.";

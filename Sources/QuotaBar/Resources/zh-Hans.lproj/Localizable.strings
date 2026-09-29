@@ -251,3 +251,12 @@
 "Stands up at" = "站立速率";
 "Out of the saddle, rocking the bike." = "离开坐垫，左右摇车。";
 "Counts tokens written to this Mac's transcripts, excluding cache reads." = "统计本机会话记录写入的 token，不含缓存读取。";
+"Screenshot" = "截图";
+"Start recording" = "开始录制";
+"Stop recording" = "停止录制";
+"Recording %@" = "录制中 %@";
+"Saving preview…" = "正在保存预览…";
+"Save preview" = "保存预览";
+"Preview export failed" = "预览导出失败";
+"Could not render the preview." = "无法绘制预览画面。";
+"Could not encode the preview video." = "无法编码预览视频。";

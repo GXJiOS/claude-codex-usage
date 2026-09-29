@@ -7,16 +7,9 @@ struct AppearancePage: View {
 
     var body: some View {
         SettingsPage(title: "Appearance", subtitle: "Customize how Claude and Codex appear in your menu bar") {
-            SettingsCard("Live preview", subtitle: "Example usage · Claude 39% · Codex 60%") {
-                Image(nsImage: StatusTitleImage.make(
-                    statuses: PreviewData.statuses(), settings: model.settings, mode: model.displayMode,
-                    cyclists: model.settings.showCyclist
-                        ? [.claude: CyclistFrame(cadence: .normal, index: 2),
-                           .codex: CyclistFrame(cadence: .standing, index: 5)]
-                        : [:]))
-                    .frame(maxWidth: .infinity).frame(height: 38)
-                    .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.05)))
-                    .accessibilityLabel(L("Menu bar style preview"))
+            SettingsCard("Live preview") {
+                MenuBarLivePreview()
+                    .frame(maxWidth: .infinity)
             }
             SettingsCard("Global Settings", subtitle: "Applies to both providers") {
                 VStack(spacing: 16) {

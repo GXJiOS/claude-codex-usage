@@ -25,13 +25,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.onFreshSnapshot = { [weak notifications] provider, snapshot in
             Task { await notifications?.process(provider: provider, snapshot: snapshot, settings: Settings.load()) }
         }
-        let window = MainWindowController(store: store, model: model, notifications: notifications)
-        self.window = window
         // Preview runs against fixtures, so its riders stay parked rather than reading
         // this Mac's real transcripts.
         let rates = UsageRateMonitor(thresholds: model.settings.cadenceThresholds, isLive: !preview)
         self.rates = rates
         let statusBar = StatusBarController(store: store, model: model, rates: rates)
+        let window = MainWindowController(store: store, model: model, notifications: notifications, statusBar: statusBar)
+        self.window = window
         statusBar.onOpenWindow = { [weak window] in window?.show() }
         self.statusBar = statusBar
         store.startPolling()

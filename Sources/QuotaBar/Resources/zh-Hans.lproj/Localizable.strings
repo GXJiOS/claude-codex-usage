@@ -215,6 +215,7 @@
 "remaining" = "剩余";
 "used" = "已用";
 "Today" = "今日";
+"Recent one-minute average from this Mac, updated every 5 seconds. Counts input, output and cache writes; cache reads are included only in today's total." = "最近 1 分钟本机平均消耗，每 5 秒更新。包含输入、输出及缓存写入；缓存读取仅计入今日总量。";
 "Resets" = "重置";
 "expires %@" = "到期 %@";
 "Refresh Now" = "立即刷新";

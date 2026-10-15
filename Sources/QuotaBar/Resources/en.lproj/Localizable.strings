@@ -215,6 +215,7 @@
 "remaining" = "remaining";
 "used" = "used";
 "Today" = "Today";
+"Recent one-minute average from this Mac, updated every 5 seconds. Counts input, output and cache writes; cache reads are included only in today's total." = "Recent one-minute average from this Mac, updated every 5 seconds. Counts input, output and cache writes; cache reads are included only in today's total.";
 "Resets" = "Resets";
 "expires %@" = "expires %@";
 "Refresh Now" = "Refresh Now";

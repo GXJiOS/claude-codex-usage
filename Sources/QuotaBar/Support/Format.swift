@@ -102,6 +102,12 @@ enum Format {
         }
     }
 
+    /// Minute throughput keeps exact counts beside the compact daily total.
+    static func tokenRate(_ tokensPerMinute: Int?) -> String {
+        guard let tokensPerMinute else { return "– token/min" }
+        return "\(max(0, tokensPerMinute).formatted(.number.locale(locale))) token/min"
+    }
+
     /// Drops a trailing ".0" / ".00" so "1.50" reads "1.5" and "2.00" reads "2".
     private static func trimmed(_ decimal: String) -> String {
         guard decimal.contains(".") else { return decimal }

@@ -170,3 +170,34 @@ final class RateWindowTests: XCTestCase {
         XCTAssertEqual(window.tokensPerMinute(at: start.addingTimeInterval(121)), 0, "the old burst has aged out")
     }
 }
+
+final class TokenRateDisplayTests: XCTestCase {
+    func testUnknownRateIsDistinctFromIdle() {
+        XCTAssertEqual(Format.tokenRate(nil), "– token/min")
+        XCTAssertEqual(Format.tokenRate(0), "0 token/min")
+    }
+
+    func testMinuteRateKeepsExactCountsInBothLanguages() {
+        let original = L10n.language
+        defer { L10n.language = original }
+        for language in AppLanguage.allCases {
+            L10n.language = language
+            XCTAssertEqual(Format.tokenRate(12_800), "12,800 token/min")
+            XCTAssertEqual(Format.tokenRate(999), "999 token/min")
+            XCTAssertEqual(Format.tokenRate(1_234_567), "1,234,567 token/min")
+        }
+    }
+
+    @MainActor
+    func testProviderMinuteRatesReturnToZeroAfterWindowExpires() {
+        let monitor = UsageRateMonitor(isLive: false)
+        let now = Date().addingTimeInterval(RateWindow.span)
+        monitor.absorb([.claude: 12_800, .codex: 3_600], at: now)
+        XCTAssertEqual(Format.tokenRate(monitor.rates[.claude]), "12,800 token/min")
+        XCTAssertEqual(Format.tokenRate(monitor.rates[.codex]), "3,600 token/min")
+
+        monitor.absorb([:], at: now.addingTimeInterval(RateWindow.span))
+        XCTAssertEqual(Format.tokenRate(monitor.rates[.claude]), "0 token/min")
+        XCTAssertEqual(Format.tokenRate(monitor.rates[.codex]), "0 token/min")
+    }
+}

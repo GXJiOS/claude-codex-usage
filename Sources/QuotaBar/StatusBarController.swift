@@ -12,6 +12,7 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
     private let model: SettingsModel
     private let rates: UsageRateMonitor
     private var subscriptions = Set<AnyCancellable>()
+    private var tokenRateRows: [ProviderKind: (item: NSMenuItem, field: NSTextField, title: String)] = [:]
     private var mode: DisplayMode { model.displayMode }
     /// Frame phase is taken from elapsed time, so a late timer tick lands the rider where
     /// it should be rather than slowing the whole animation down.
@@ -48,6 +49,9 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
         rates.$cadences.removeDuplicates().receive(on: DispatchQueue.main).sink { [weak self] cadences in
             self?.scheduleAnimation(for: cadences)
         }.store(in: &subscriptions)
+        rates.$rates.removeDuplicates().receive(on: DispatchQueue.main).sink { [weak self] measured in
+            self?.updateTokenRates(measured)
+        }.store(in: &subscriptions)
         render()
     }
 
@@ -57,7 +61,7 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
 
     func render() {
         rates.apply(thresholds: model.settings.cadenceThresholds)
-        rates.setEnabled(model.settings.showCyclist)
+        rates.setEnabled(model.settings.showCyclist || model.settings.showTokens)
         titleLayout = StatusTitleImage.layout(statuses: store.statuses, settings: model.settings,
                                               mode: mode, withRiders: model.settings.showCyclist)
         scheduleAnimation(for: rates.cadences)
@@ -123,6 +127,7 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
     // MARK: - Menu
 
     private func rebuildMenu() {
+        tokenRateRows.removeAll()
         menu.removeAllItems()
         menu.addItem(toolbarItem())
         menu.addItem(.separator())
@@ -149,7 +154,7 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
                     menu.addItem(resetCreditsItem(label: L("Resets"), width: labelWidth, credits: credits))
                 }
                 if model.settings.showTokens, let tokens = snapshot.tokensToday {
-                    menu.addItem(tokensItem(label: L("Today"), width: labelWidth, tokens: tokens))
+                    menu.addItem(tokensItem(kind: kind, label: L("Today"), width: labelWidth, tokens: tokens))
                 }
                 if let note = snapshot.sourceNote {
                     menu.addItem(detailItem("ⓘ \(truncate(note))", color: .secondaryLabelColor))
@@ -243,11 +248,29 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
         return item
     }
 
-    /// "Today  1.2M" — tokens consumed today on this Mac.
-    private func tokensItem(label: String, width: CGFloat, tokens: Int) -> NSMenuItem {
-        let item = detailRow(label: label, width: width, value: plainValue(Format.tokens(tokens), color: .labelColor), trailing: "")
-        item.title = "\(label) \(Format.tokens(tokens)) tokens"
+    /// Today's total and the recent token consumption rate share one row.
+    private func tokensItem(kind: ProviderKind, label: String, width: CGFloat, tokens: Int) -> NSMenuItem {
+        let rate = Format.tokenRate(rates.rates[kind])
+        let field = plainValue(rate, color: .secondaryLabelColor)
+        let item = detailRow(label: label, width: width, value: plainValue(Format.tokens(tokens), color: .labelColor),
+                             trailing: rate, trailingField: field)
+        let title = "\(label) \(Format.tokens(tokens)) tokens"
+        item.title = "\(title), \(rate)"
+        let help = L("Recent one-minute average from this Mac, updated every 5 seconds. Counts input, output and cache writes; cache reads are included only in today's total.")
+        item.toolTip = help
+        field.toolTip = help
+        field.setAccessibilityHelp(help)
+        tokenRateRows[kind] = (item, field, title)
         return item
+    }
+
+    /// Updates visible rate fields while preserving the open menu's rows and controls.
+    private func updateTokenRates(_ measured: [ProviderKind: Int]) {
+        for (kind, row) in tokenRateRows {
+            let rate = Format.tokenRate(measured[kind])
+            row.field.stringValue = rate
+            row.item.title = "\(row.title), \(rate)"
+        }
     }
 
     private func plainValue(_ text: String, color: NSColor) -> NSTextField {
@@ -258,7 +281,8 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
     }
 
     /// Indented row: monospaced name column, a value view, and right-aligned trailing text.
-    private func detailRow(label: String, width: CGFloat, value: NSView, trailing: String) -> NSMenuItem {
+    private func detailRow(label: String, width: CGFloat, value: NSView, trailing: String,
+                           trailingField: NSTextField? = nil) -> NSMenuItem {
         let leftInset: CGFloat = 14 + 12
         let rightInset: CGFloat = 14
         let gap: CGFloat = 8
@@ -268,9 +292,9 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
         name.font = detailFont
         name.textColor = .labelColor
 
-        let trailingLabel = NSTextField(labelWithString: trailing)
+        let trailingLabel = trailingField ?? NSTextField(labelWithString: trailing)
         trailingLabel.font = detailFont
-        trailingLabel.textColor = .labelColor
+        if trailingField == nil { trailingLabel.textColor = .labelColor }
         trailingLabel.alignment = .right
 
         let row = NSView(frame: .zero)

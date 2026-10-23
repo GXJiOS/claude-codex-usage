@@ -51,11 +51,6 @@ struct HistoryPage: View {
         let value: Double
         let series: String
     }
-    private struct DayPoint: Identifiable {
-        var id: Date { day }
-        let day: Date
-        let tokens: Int
-    }
 
     @EnvironmentObject private var model: SettingsModel
     @EnvironmentObject private var store: UsageStore
@@ -79,7 +74,7 @@ struct HistoryPage: View {
             return points
         }
     }
-    private var dailyTokens: [DayPoint] {
+    private var dailyTokens: [DailyTokenChart.DayPoint] {
         var peaks: [Date: Int] = [:]
         for record in visibleRecords {
             if let tokens = record.tokensToday {
@@ -87,12 +82,7 @@ struct HistoryPage: View {
                 peaks[day] = max(peaks[day] ?? 0, tokens)
             }
         }
-        return peaks.map { DayPoint(day: $0.key, tokens: $0.value) }.sorted { $0.day < $1.day }
-    }
-    private var tokenAxisDates: [Date] {
-        guard let last = dailyTokens.last?.day,
-              let boundary = Calendar.current.date(byAdding: .day, value: 1, to: last) else { return [] }
-        return dailyTokens.map(\.day) + [boundary]
+        return peaks.map { DailyTokenChart.DayPoint(day: $0.key, tokens: $0.value) }.sorted { $0.day < $1.day }
     }
 
     var body: some View {
@@ -166,23 +156,7 @@ struct HistoryPage: View {
                     if loading { ProgressView().frame(maxWidth: .infinity).frame(height: 130) }
                     else if dailyTokens.isEmpty { emptyChart("No token samples in this range") }
                     else {
-                        Chart(dailyTokens) { point in
-                            BarMark(x: .value(L("Day"), point.day, unit: .day), y: .value(L("Tokens"), point.tokens), width: .fixed(16))
-                                .foregroundStyle(Color.accentColor.opacity(0.8)).cornerRadius(2)
-                        }
-                        .chartYAxis {
-                            AxisMarks(position: .leading) { value in
-                                AxisGridLine()
-                                AxisValueLabel { Text(Format.tokens(value.as(Int.self) ?? 0)) }
-                            }
-                        }
-                        .chartXAxis {
-                            AxisMarks(values: tokenAxisDates) { _ in
-                                AxisValueLabel(format: .dateTime.month(.abbreviated).day().locale(L10n.locale), centered: true)
-                                    .font(.system(size: 9))
-                            }
-                        }
-                        .frame(height: 130)
+                        DailyTokenChart(points: dailyTokens)
                     }
                 }
                 HStack {
@@ -203,7 +177,7 @@ struct HistoryPage: View {
                 }
             }.padding(Spacing.contentPadding)
         }
-        .scrollIndicators(.hidden)
+        .scrollIndicators(.hidden, axes: .vertical)
         .task(id: store.lastRefresh) { await reload() }
         .onChange(of: range) { _ in offset = 0; anchor = Date() }
         .onChange(of: model.selectedProvider) { _ in offset = 0 }
@@ -244,5 +218,86 @@ struct HistoryPage: View {
             do { try selection.export(records, asCSV: asCSV).write(to: url, options: .atomic) }
             catch { exportError = error.localizedDescription }
         }
+    }
+}
+
+struct DailyTokenChart: View {
+    struct DayPoint: Identifiable {
+        var id: Date { day }
+        let day: Date
+        let tokens: Int
+    }
+
+    let points: [DayPoint]
+    @State private var axisWidth: CGFloat = 48
+
+    private struct AxisWidthKey: PreferenceKey {
+        static var defaultValue: CGFloat = 0
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = max(value, nextValue())
+        }
+    }
+
+    private var domain: ClosedRange<Date> {
+        let calendar = Calendar.current
+        let first = points.first?.day ?? calendar.startOfDay(for: Date())
+        let last = points.last?.day ?? first
+        let end = calendar.date(byAdding: .day, value: 1, to: last) ?? last
+        return first...end
+    }
+
+    private var dayCount: Int {
+        max(1, Calendar.current.dateComponents([.day], from: domain.lowerBound, to: domain.upperBound).day ?? 1)
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = max(geometry.size.width, CGFloat(dayCount) * 56 + axisWidth)
+            // Identical chart dimensions keep the fixed axis and automatic plot scales aligned.
+            HStack(alignment: .top, spacing: 0) {
+                chart(width: width)
+                    .frame(width: axisWidth, alignment: .leading)
+                    .clipped()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                ScrollView(.horizontal) {
+                    chart(width: width)
+                        .chartOverlay { proxy in
+                            GeometryReader { chartGeometry in
+                                Color.clear.preference(key: AxisWidthKey.self,
+                                                       value: chartGeometry[proxy.plotAreaFrame].minX)
+                            }
+                        }
+                        .padding(.leading, -axisWidth)
+                }
+                .scrollIndicators(.visible, axes: .horizontal)
+            }
+        }
+        .frame(height: 157)
+        .onPreferenceChange(AxisWidthKey.self) { width in
+            if width > 0, abs(width - axisWidth) > 0.5 { axisWidth = width }
+        }
+    }
+
+    private func chart(width: CGFloat) -> some View {
+        Chart(points) { point in
+            BarMark(x: .value(L("Day"), point.day, unit: .day), y: .value(L("Tokens"), point.tokens), width: .fixed(16))
+                .foregroundStyle(Color.accentColor.opacity(0.8)).cornerRadius(2)
+        }
+        .chartXScale(domain: domain)
+        .chartYAxis {
+            AxisMarks(position: .leading) { value in
+                AxisGridLine()
+                AxisValueLabel { Text(Format.tokens(value.as(Int.self) ?? 0)) }
+            }
+        }
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .day)) { _ in
+                AxisValueLabel(format: .dateTime.month(.abbreviated).day().locale(L10n.locale), centered: true)
+                    .font(.system(size: 9))
+            }
+        }
+        .frame(width: width, height: 130)
+        .padding(.vertical, 6)
     }
 }

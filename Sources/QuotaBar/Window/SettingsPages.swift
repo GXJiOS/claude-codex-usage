@@ -28,7 +28,7 @@ struct AppearancePage: View {
                     settingToggle("Show remaining percentage", "Display how much quota is available.", $model.showRemaining)
                 }
             }
-            SettingsCard("Menu Bar Metrics", subtitle: "Both providers stay visible side by side") {
+            SettingsCard("Menu Bar Metrics", subtitle: "Shown providers sit side by side") {
                 VStack(alignment: .leading, spacing: 12) {
                     Label(L("Icon Style"), systemImage: "menubar.rectangle").font(Typography.body)
                     HStack(alignment: .top, spacing: 6) {
@@ -49,11 +49,32 @@ struct AppearancePage: View {
                     }
                     Text(L("Claude shows the session window. Codex and Gemini show the session window, or weekly usage when a session window is unavailable."))
                         .font(Typography.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Divider()
+                    Label(L("Show in menu bar"), systemImage: "eye").font(Typography.body)
+                    ForEach(ProviderKind.allCases, id: \.self) { provider in
+                        HStack(spacing: 8) {
+                            ProviderMark(provider: provider).frame(width: 14)
+                            Text(provider.displayName).font(Typography.body)
+                            Spacer()
+                            Toggle(provider.displayName, isOn: menuBarBinding(provider))
+                                .labelsHidden().toggleStyle(.switch)
+                                .disabled(model.settings.menuBarProviders == [provider])
+                        }
+                    }
+                    Text(L("Hidden providers stay in the usage menu. At least one provider stays in the menu bar."))
+                        .font(Typography.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
             UsageColorSettingsCard()
             CyclistSettingsCard()
         }
+    }
+
+    private func menuBarBinding(_ provider: ProviderKind) -> Binding<Bool> {
+        Binding(get: { model.settings.menuBarProviders.contains(provider) }, set: { shown in
+            if shown { model.settings.hiddenMenuBarProviders.remove(provider) }
+            else { model.settings.hiddenMenuBarProviders.insert(provider) }
+        })
     }
 
     private func styleImage(_ style: MenuBarStyle) -> NSImage {

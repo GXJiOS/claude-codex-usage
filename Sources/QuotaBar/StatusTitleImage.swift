@@ -52,7 +52,7 @@ enum StatusTitleImage {
         let font = NSFont.monospacedDigitSystemFont(ofSize: stackedLabels ? 10 : 12, weight: .semibold)
         let labelFont = NSFont.systemFont(ofSize: stackedLabels ? 7 : 11, weight: .medium)
         let providerGap: CGFloat = isBadge || stackedLabels ? 4 : 12
-        let providers = ProviderKind.allCases
+        let providers = settings.menuBarProviders
         let indicatorWidths: [CGFloat] = providers.map { provider in
             switch settings.menuBarStyle {
             case .battery: return 28

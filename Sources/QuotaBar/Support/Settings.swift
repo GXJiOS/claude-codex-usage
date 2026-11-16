@@ -17,6 +17,8 @@ struct Settings: Sendable, Equatable, Codable {
     var usageColorThresholds: UsageColorThresholds = .default
     var theme: AppTheme = .system
     var showLabels = true
+    /// Providers left out of the menu bar; the usage menu still lists every provider.
+    var hiddenMenuBarProviders: Set<ProviderKind> = []
     /// Menu bar cyclist whose pedalling speed tracks live token throughput.
     var showCyclist = true
     var cadenceThresholds: CadenceThresholds = .default
@@ -33,6 +35,13 @@ struct Settings: Sendable, Equatable, Codable {
     var language: AppLanguage = .systemDefault()
 
     static let `default` = Settings(refreshInterval: 300, historyRetentionDays: 90)
+
+    /// Menu bar columns in display order. Hiding every provider would leave nothing to
+    /// click, so an empty selection shows them all.
+    var menuBarProviders: [ProviderKind] {
+        let shown = ProviderKind.allCases.filter { !hiddenMenuBarProviders.contains($0) }
+        return shown.isEmpty ? ProviderKind.allCases : shown
+    }
 
     static let refreshIntervalChoices: [TimeInterval] = [60, 300, 600, 1800]
     static let retentionChoices: [Int] = [7, 30, 90, 365]
@@ -70,7 +79,7 @@ extension Settings {
         case refreshInterval, historyRetentionDays, menuBarStyle, colorMode, theme, showLabels
         case timeDisplay, showTokens, showModels, showResetCredits, notificationsEnabled
         case notificationThresholds, notificationSound, notifyOnReset, language
-        case usageColorThresholds, showCyclist, cadenceThresholds, parkedPose
+        case usageColorThresholds, showCyclist, cadenceThresholds, parkedPose, hiddenMenuBarProviders
     }
 
     init(from decoder: Decoder) throws {
@@ -84,6 +93,8 @@ extension Settings {
         usageColorThresholds = (try? values.decode(UsageColorThresholds.self, forKey: .usageColorThresholds)) ?? .default
         theme = try values.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .system
         showLabels = try values.decodeIfPresent(Bool.self, forKey: .showLabels) ?? true
+        hiddenMenuBarProviders = Set((try? values.decodeIfPresent([String].self, forKey: .hiddenMenuBarProviders))?
+            .compactMap(ProviderKind.init(rawValue:)) ?? [])
         showCyclist = try values.decodeIfPresent(Bool.self, forKey: .showCyclist) ?? true
         cadenceThresholds = (try? values.decode(CadenceThresholds.self, forKey: .cadenceThresholds)) ?? .default
         parkedPose = try values.decodeIfPresent(ParkedPose.self, forKey: .parkedPose) ?? .sleeping

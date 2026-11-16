@@ -36,9 +36,11 @@
 "Baseline" = "Baseline";
 "Battery" = "Battery";
 "Both" = "Both";
+"Hidden providers stay in the usage menu. At least one provider stays in the menu bar." = "Hidden providers stay in the usage menu. At least one provider stays in the menu bar.";
 "Install the Antigravity CLI, then run `agy` and sign in." = "Install the Antigravity CLI, then run `agy` and sign in.";
 "Open Terminal, run agy, and complete sign-in." = "Open Terminal, run agy, and complete sign-in.";
-"Both providers stay visible side by side" = "Both providers stay visible side by side";
+"Show in menu bar" = "Show in menu bar";
+"Shown providers sit side by side" = "Shown providers sit side by side";
 "Changes apply immediately and are saved for the next launch." = "Changes apply immediately and are saved for the next launch.";
 "Check System Settings › General › Login Items." = "Check System Settings › General › Login Items.";
 "Choose how often usage is checked" = "Choose how often usage is checked";

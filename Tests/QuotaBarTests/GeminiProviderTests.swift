@@ -86,6 +86,47 @@ final class GeminiProviderTests: XCTestCase {
         }
     }
 
+    // MARK: - Menu bar visibility
+
+    func testMenuBarProvidersFollowHiddenSetAndNeverEmpty() throws {
+        var settings = Settings.default
+        XCTAssertEqual(settings.menuBarProviders, [.claude, .codex, .gemini])
+        settings.hiddenMenuBarProviders = [.codex]
+        XCTAssertEqual(settings.menuBarProviders, [.claude, .gemini])
+        settings.hiddenMenuBarProviders = Set(ProviderKind.allCases)
+        XCTAssertEqual(settings.menuBarProviders, ProviderKind.allCases)
+
+        settings.hiddenMenuBarProviders = [.gemini]
+        let decoded = try JSONDecoder().decode(Settings.self, from: JSONEncoder().encode(settings))
+        XCTAssertEqual(decoded.hiddenMenuBarProviders, [.gemini])
+    }
+
+    func testStoredPreferencesWithoutOrWithUnknownProvidersDecode() throws {
+        let legacy = try JSONDecoder().decode(Settings.self, from: Data(#"{"showLabels": false}"#.utf8))
+        XCTAssertEqual(legacy.hiddenMenuBarProviders, [])
+        let unknown = try JSONDecoder().decode(Settings.self, from: Data(#"{"hiddenMenuBarProviders": ["codex", "retired"]}"#.utf8))
+        XCTAssertEqual(unknown.hiddenMenuBarProviders, [.codex])
+    }
+
+    @MainActor
+    func testMenuBarImageWidthTracksShownProviders() {
+        let statuses = PreviewData.statuses()
+        func width(hiding hidden: Set<ProviderKind>) -> CGFloat {
+            var settings = Settings.default
+            settings.menuBarStyle = .ring
+            settings.showLabels = false
+            settings.hiddenMenuBarProviders = hidden
+            return StatusTitleImage.layout(statuses: statuses, settings: settings, mode: .used, withRiders: false).size.width
+        }
+        let one = width(hiding: [.codex, .gemini])
+        let two = width(hiding: [.gemini])
+        let three = width(hiding: [])
+        // Ring columns are 20pt with a 12pt gap between neighbours.
+        XCTAssertEqual(one, 20)
+        XCTAssertEqual(two, 52)
+        XCTAssertEqual(three, 84)
+    }
+
     // MARK: - Notifications
 
     /// An untouched Gemini 5h bucket reports "now + 5h" on every poll, so its reset date

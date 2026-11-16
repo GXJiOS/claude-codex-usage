@@ -36,9 +36,11 @@
 "Baseline" = "基线";
 "Battery" = "电池";
 "Both" = "同时显示";
+"Hidden providers stay in the usage menu. At least one provider stays in the menu bar." = "隐藏的平台仍会出现在用量菜单中。菜单栏至少保留一个平台。";
 "Install the Antigravity CLI, then run `agy` and sign in." = "请先安装 Antigravity CLI，然后运行 `agy` 并登录。";
 "Open Terminal, run agy, and complete sign-in." = "打开终端，运行 agy 并完成登录。";
-"Both providers stay visible side by side" = "两个平台的用量并排显示";
+"Show in menu bar" = "在菜单栏显示";
+"Shown providers sit side by side" = "已开启的平台并排显示";
 "Changes apply immediately and are saved for the next launch." = "切换后立即生效，下次启动时继续使用。";
 "Check System Settings › General › Login Items." = "请检查系统设置 › 通用 › 登录项。";
 "Choose how often usage is checked" = "选择用量数据的检查频率";

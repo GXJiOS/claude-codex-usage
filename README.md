@@ -1,6 +1,8 @@
-# QuotaBar
+# AI Usage
 
 Native macOS menu bar monitor for Claude Code, Codex and Gemini quotas, with a compact usage menu and a settings window. Every provider appears in the usage menu; Appearance → Menu Bar Metrics → Show in menu bar picks which ones sit in the menu bar (at least one stays). Refresh and Settings sit at the top right; platform names are shown in full in the menu bar.
+
+The app's display name is AI Usage. The bundle (`QuotaBar.app`), executable, bundle ID `com.gcdm.quotabar`, and `~/Library/Application Support/QuotaBar/` keep their QuotaBar names, so existing preferences, history, login item, and notification permission carry over.
 
 - **Appearance**: battery, progress bar, percentage, badge percentage, or ring indicators; usage, monochrome, or accent colors; system, light, or dark theme. Badge percentages use rounded green/yellow/red backgrounds in usage-color mode. The preview and menu bar use the same renderer.
 - **Usage menu**: session and weekly quota, Claude per-model limits, Gemini's Argon weekly limit on its own row, local daily tokens, Codex full-reset count and earliest expiry. Reset times can show the date, countdown, or both. Missing windows and saved-log data are labeled explicitly.

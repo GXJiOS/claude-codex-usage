@@ -1,4 +1,4 @@
-// QuotaBar interface strings.
+// AI Usage interface strings.
 " Resets %@." = " 重置时间：%@。";
 "%@ Account" = "%@ 账号";
 "%@ icon style" = "%@图标样式";
@@ -46,7 +46,6 @@
 "Choose how often usage is checked" = "选择用量数据的检查频率";
 "Choose the details shown when you open the menu bar" = "选择打开菜单栏弹窗时显示的内容";
 "Choose your preferred language." = "选择应用显示语言。";
-"Claude and Codex usage" = "Claude 与 Codex 用量";
 "Claude, Codex and Gemini usage, together" = "统一查看 Claude、Codex 和 Gemini 用量";
 "Claude shows the session window. Codex and Gemini show the session window, or weekly usage when a session window is unavailable." = "Claude 显示会话额度。Codex 和 Gemini 优先显示会话额度；账号未提供会话数据时，显示每周额度。";
 "Close window" = "关闭窗口";
@@ -131,11 +130,11 @@
 "Preview data · preferences are temporary" = "示例数据 · 设置仅在本次预览中生效";
 "Previous time range" = "上一时段";
 "Progress Bar" = "进度条";
-"Quit QuotaBar" = "退出 QuotaBar";
+"Quit AI Usage" = "退出 AI Usage";
 "Quota consumed" = "额度已用";
 "Quota reset alerts" = "额度重置提醒";
-"QuotaBar Settings" = "QuotaBar 设置";
-"QuotaBar on your Mac" = "管理本机上的 QuotaBar";
+"AI Usage Settings" = "AI Usage 设置";
+"AI Usage on your Mac" = "管理本机上的 AI Usage";
 "Rate limited; next try %@" = "暂时受到限流，下次重试时间：%@";
 "Raw responses" = "原始响应";
 "Refresh Interval" = "刷新间隔";
@@ -160,7 +159,7 @@
 "Run `claude` once so it refreshes the login." = "请运行一次 claude 刷新登录状态。";
 "Run `codex` once so it refreshes the login." = "请运行一次 codex 刷新登录状态。";
 "SETTINGS" = "设置";
-"Samples accumulate while QuotaBar runs." = "QuotaBar 运行时会持续积累用量记录。";
+"Samples accumulate while AI Usage runs." = "AI Usage 运行时会持续积累用量记录。";
 "Saved usage" = "缓存用量";
 "Saved usage · updated %@" = "缓存用量 · 更新于 %@";
 "Select provider" = "选择平台";

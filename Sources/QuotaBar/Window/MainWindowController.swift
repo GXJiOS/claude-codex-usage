@@ -9,7 +9,7 @@ final class MainWindowController: NSWindowController {
     init(store: UsageStore, model: SettingsModel, notifications: UsageNotifications, statusBar: StatusBarController) {
         let window = SettingsWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 750),
                                     styleMask: [.borderless, .miniaturizable], backing: .buffered, defer: false)
-        window.title = L("QuotaBar Settings")
+        window.title = L("AI Usage Settings")
         window.backgroundColor = .clear
         window.isOpaque = false
         window.hasShadow = true
@@ -25,7 +25,7 @@ final class MainWindowController: NSWindowController {
         window.center()
         super.init(window: window)
         languageSubscription = model.$settings.map(\.language).removeDuplicates().receive(on: RunLoop.main)
-            .sink { [weak window] _ in window?.title = L("QuotaBar Settings") }
+            .sink { [weak window] _ in window?.title = L("AI Usage Settings") }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -130,10 +130,10 @@ private struct SettingsRootView: View {
                     Button { model.page = .diagnostics } label: { Image(systemName: "ant") }
                         .help(L("Diagnostics")).accessibilityLabel(L("Diagnostics"))
                     Spacer()
-                    Text("QuotaBar").font(.system(size: 10, weight: .medium))
+                    Text("AI Usage").font(.system(size: 10, weight: .medium))
                     Spacer()
                     Button { NSApp.terminate(nil) } label: { Image(systemName: "power") }
-                        .help(L("Quit QuotaBar")).accessibilityLabel(L("Quit QuotaBar"))
+                        .help(L("Quit AI Usage")).accessibilityLabel(L("Quit AI Usage"))
                 }.buttonStyle(.plain).foregroundColor(.secondary).padding(.vertical, 8)
             }
             .padding(.horizontal, 12).padding(.bottom, 4)

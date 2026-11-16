@@ -278,7 +278,7 @@ struct AppSettingsPage: View {
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var launchFailed = false
     var body: some View {
-        SettingsPage(title: "App Settings", subtitle: "QuotaBar on your Mac") {
+        SettingsPage(title: "App Settings", subtitle: "AI Usage on your Mac") {
             SettingsCard("Language", subtitle: "Changes apply immediately and are saved for the next launch.") {
                 SettingRow(title: "Language", detail: "Choose your preferred language.") {
                     Picker(L("Language"), selection: $model.settings.language) {
@@ -300,7 +300,7 @@ struct AppSettingsPage: View {
                         }
                 }
             }
-            SettingsCard("QuotaBar", subtitle: "Claude, Codex and Gemini usage, together") {
+            SettingsCard("AI Usage", subtitle: "Claude, Codex and Gemini usage, together") {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(L("Your usage history stays on this Mac.")).font(Typography.body)
                     Text(L("Account credentials are read from your signed-in command-line tools. Sign in there to reconnect an account."))

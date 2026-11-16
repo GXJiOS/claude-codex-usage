@@ -191,7 +191,7 @@ struct HistoryPage: View {
         VStack(spacing: 8) {
             Image(systemName: "chart.xyaxis.line").font(.system(size: 22))
             Text(L(title)).font(Typography.body)
-            Text(L("Samples accumulate while QuotaBar runs.")).font(Typography.caption)
+            Text(L("Samples accumulate while AI Usage runs.")).font(Typography.caption)
         }.foregroundColor(.secondary).frame(maxWidth: .infinity).frame(height: 150)
     }
 

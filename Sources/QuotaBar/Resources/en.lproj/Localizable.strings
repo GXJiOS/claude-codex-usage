@@ -1,4 +1,4 @@
-// QuotaBar interface strings.
+// AI Usage interface strings.
 " Resets %@." = " Resets %@.";
 "%@ Account" = "%@ Account";
 "%@ icon style" = "%@ icon style";
@@ -46,7 +46,6 @@
 "Choose how often usage is checked" = "Choose how often usage is checked";
 "Choose the details shown when you open the menu bar" = "Choose the details shown when you open the menu bar";
 "Choose your preferred language." = "Choose your preferred language.";
-"Claude and Codex usage" = "Claude and Codex usage";
 "Claude, Codex and Gemini usage, together" = "Claude, Codex and Gemini usage, together";
 "Claude shows the session window. Codex and Gemini show the session window, or weekly usage when a session window is unavailable." = "Claude shows the session window. Codex and Gemini show the session window, or weekly usage when a session window is unavailable.";
 "Close window" = "Close window";
@@ -131,11 +130,11 @@
 "Preview data · preferences are temporary" = "Preview data · preferences are temporary";
 "Previous time range" = "Previous time range";
 "Progress Bar" = "Progress Bar";
-"Quit QuotaBar" = "Quit QuotaBar";
+"Quit AI Usage" = "Quit AI Usage";
 "Quota consumed" = "Quota consumed";
 "Quota reset alerts" = "Quota reset alerts";
-"QuotaBar Settings" = "QuotaBar Settings";
-"QuotaBar on your Mac" = "QuotaBar on your Mac";
+"AI Usage Settings" = "AI Usage Settings";
+"AI Usage on your Mac" = "AI Usage on your Mac";
 "Rate limited; next try %@" = "Rate limited; next try %@";
 "Raw responses" = "Raw responses";
 "Refresh Interval" = "Refresh Interval";
@@ -160,7 +159,7 @@
 "Run `claude` once so it refreshes the login." = "Run `claude` once so it refreshes the login.";
 "Run `codex` once so it refreshes the login." = "Run `codex` once so it refreshes the login.";
 "SETTINGS" = "SETTINGS";
-"Samples accumulate while QuotaBar runs." = "Samples accumulate while QuotaBar runs.";
+"Samples accumulate while AI Usage runs." = "Samples accumulate while AI Usage runs.";
 "Saved usage" = "Saved usage";
 "Saved usage · updated %@" = "Saved usage · updated %@";
 "Select provider" = "Select provider";

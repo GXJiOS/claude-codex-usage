@@ -87,7 +87,7 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
         let image = StatusTitleImage.compose(layout, poses: poses)
         button.image = image
         currentImage = image
-        button.setAccessibilityLabel(L("Claude and Codex usage"))
+        button.setAccessibilityLabel("AI Usage")
         button.imagePosition = .imageOnly
         button.imageScaling = .scaleNone
         button.title = ""
@@ -186,7 +186,7 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
             menu.addItem(shortcut)
         }
         // Own selector: macOS decorates the standard terminate: item with a glyph.
-        let quit = NSMenuItem(title: L("Quit QuotaBar"), action: #selector(quitApp), keyEquivalent: "q")
+        let quit = NSMenuItem(title: L("Quit AI Usage"), action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
     }
@@ -208,7 +208,7 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
                                   refreshEnabled: !isUpdating)
         row.onRefresh = { [weak self] in self?.refreshNow() }
         row.onSettings = { [weak self] in self?.openWindow() }
-        let item = NSMenuItem(title: "QuotaBar", action: nil, keyEquivalent: "")
+        let item = NSMenuItem(title: "AI Usage", action: nil, keyEquivalent: "")
         item.view = row
         return item
     }
@@ -391,7 +391,7 @@ private final class MenuToolbarView: NSView {
     init(detail: String, statusColor: NSColor, refreshEnabled: Bool) {
         super.init(frame: NSRect(x: 0, y: 0, width: 360, height: 52))
         autoresizingMask = [.width]
-        let title = NSTextField(labelWithString: "QuotaBar")
+        let title = NSTextField(labelWithString: "AI Usage")
         title.font = .systemFont(ofSize: 14, weight: .semibold)
         let subtitle = NSTextField(labelWithString: detail)
         subtitle.font = .systemFont(ofSize: 10, weight: .medium)

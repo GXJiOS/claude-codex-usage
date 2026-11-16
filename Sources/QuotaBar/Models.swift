@@ -1,14 +1,16 @@
 import Foundation
 
-enum ProviderKind: String, CaseIterable, Sendable {
+enum ProviderKind: String, CaseIterable, Codable, Sendable {
     case claude
     case codex
+    case gemini
 
     /// One-letter tag shown in the menu bar.
     var shortLabel: String {
         switch self {
         case .claude: return "C"
         case .codex: return "X"
+        case .gemini: return "G"
         }
     }
 
@@ -16,15 +18,25 @@ enum ProviderKind: String, CaseIterable, Sendable {
         switch self {
         case .claude: return "Claude"
         case .codex: return "Codex"
+        case .gemini: return "Gemini"
         }
     }
 
-    /// The single window shown in the menu bar: Claude always its session; Codex its
-    /// session, or the weekly window when the API reports no session window.
+    /// The command that signs this provider's CLI in, shown on the account page.
+    var signInCommand: String {
+        switch self {
+        case .claude: return "claude"
+        case .codex: return "codex login"
+        case .gemini: return "agy"
+        }
+    }
+
+    /// The single window shown in the menu bar: Claude always its session; Codex and
+    /// Gemini their session, or the weekly window when no session window is reported.
     func menuBarWindow(in snapshot: UsageSnapshot) -> UsageWindow? {
         switch self {
         case .claude: return snapshot.session
-        case .codex: return snapshot.session ?? snapshot.weekly
+        case .codex, .gemini: return snapshot.session ?? snapshot.weekly
         }
     }
 }

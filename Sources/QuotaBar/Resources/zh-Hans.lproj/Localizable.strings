@@ -27,15 +27,17 @@
 "Add a threshold to receive usage alerts." = "添加阈值后即可接收用量提醒。";
 "Add threshold" = "添加阈值";
 "Alert thresholds" = "提醒阈值";
-"Alerts for Claude and Codex session and weekly limits" = "接收 Claude 和 Codex 的会话及每周额度提醒";
+"Alerts for Claude, Codex and Gemini session and weekly limits" = "接收 Claude、Codex 和 Gemini 的会话及每周额度提醒";
 "All models" = "所有模型";
 "App Settings" = "应用设置";
 "Appearance" = "外观";
-"Applies to both providers" = "对两个平台同时生效";
+"Applies to all providers" = "对所有平台同时生效";
 "Available quota resets" = "可用的额度重置次数";
 "Baseline" = "基线";
 "Battery" = "电池";
 "Both" = "同时显示";
+"Install the Antigravity CLI, then run `agy` and sign in." = "请先安装 Antigravity CLI，然后运行 `agy` 并登录。";
+"Open Terminal, run agy, and complete sign-in." = "打开终端，运行 agy 并完成登录。";
 "Both providers stay visible side by side" = "两个平台的用量并排显示";
 "Changes apply immediately and are saved for the next launch." = "切换后立即生效，下次启动时继续使用。";
 "Check System Settings › General › Login Items." = "请检查系统设置 › 通用 › 登录项。";
@@ -43,8 +45,8 @@
 "Choose the details shown when you open the menu bar" = "选择打开菜单栏弹窗时显示的内容";
 "Choose your preferred language." = "选择应用显示语言。";
 "Claude and Codex usage" = "Claude 与 Codex 用量";
-"Claude and Codex usage, together" = "统一查看 Claude 和 Codex 用量";
-"Claude shows the session window. Codex shows the session window, or weekly usage when a session window is unavailable." = "Claude 显示会话额度。Codex 优先显示会话额度；账号未提供会话数据时，显示每周额度。";
+"Claude, Codex and Gemini usage, together" = "统一查看 Claude、Codex 和 Gemini 用量";
+"Claude shows the session window. Codex and Gemini show the session window, or weekly usage when a session window is unavailable." = "Claude 显示会话额度。Codex 和 Gemini 优先显示会话额度；账号未提供会话数据时，显示每周额度。";
 "Close window" = "关闭窗口";
 "Codex full resets" = "Codex 完整重置次数";
 "Badge Percentage" = "底色百分比";
@@ -55,7 +57,7 @@
 "Connection status" = "连接状态";
 "Copy" = "复制";
 "Custom notification threshold" = "自定义提醒阈值";
-"Customize how Claude and Codex appear in your menu bar" = "自定义 Claude 和 Codex 在菜单栏中的显示方式";
+"Customize how Claude, Codex and Gemini appear in your menu bar" = "自定义 Claude、Codex 和 Gemini 在菜单栏中的显示方式";
 "Dark" = "深色";
 "Day" = "日期";
 "Diagnostics" = "诊断";
@@ -87,7 +89,7 @@
 "Icon Style" = "图标样式";
 "Identify Claude with C and Codex with X." = "使用 C 表示 Claude，X 表示 Codex。";
 "Indicator colors" = "指示器颜色";
-"Keep Claude and Codex usage in your menu bar." = "登录后自动在菜单栏显示 Claude 和 Codex 用量。";
+"Keep Claude, Codex and Gemini usage in your menu bar." = "登录后自动在菜单栏显示 Claude、Codex 和 Gemini 用量。";
 "Keep samples for" = "历史保留时长";
 "Keychain item has no claudeAiOauth entry; run `claude` and log in." = "钥匙串中缺少 Claude 登录信息，请运行 claude 并登录。";
 "Language" = "语言";
@@ -166,7 +168,7 @@
 "Session window" = "会话额度窗口";
 "Settings" = "设置";
 "Settings…" = "设置…";
-"Show additional model limits reported by Claude." = "显示 Claude 提供的额外模型额度。";
+"Show additional model limits reported by Claude and Gemini." = "显示 Claude 和 Gemini 提供的额外模型额度。";
 "Show available reset count and earliest expiry." = "显示可用重置次数和最早到期时间。";
 "Show provider labels" = "显示平台标识";
 "Show remaining percentage" = "显示剩余百分比";

@@ -6,12 +6,12 @@ struct AppearancePage: View {
     @EnvironmentObject private var model: SettingsModel
 
     var body: some View {
-        SettingsPage(title: "Appearance", subtitle: "Customize how Claude and Codex appear in your menu bar") {
+        SettingsPage(title: "Appearance", subtitle: "Customize how Claude, Codex and Gemini appear in your menu bar") {
             SettingsCard("Live preview") {
                 MenuBarLivePreview()
                     .frame(maxWidth: .infinity)
             }
-            SettingsCard("Global Settings", subtitle: "Applies to both providers") {
+            SettingsCard("Global Settings", subtitle: "Applies to all providers") {
                 VStack(spacing: 16) {
                     SettingRow(title: "Appearance", detail: "Match your desktop or choose a theme.") {
                         Picker(L("Appearance"), selection: $model.settings.theme) {
@@ -24,7 +24,7 @@ struct AppearancePage: View {
                             ForEach(IndicatorColorMode.allCases, id: \.self) { Text($0.title).tag($0) }
                         }.labelsHidden().frame(width: 130)
                     }
-                    settingToggle("Show provider labels", "Claude · Codex", $model.settings.showLabels)
+                    settingToggle("Show provider labels", "Claude · Codex · Gemini", $model.settings.showLabels)
                     settingToggle("Show remaining percentage", "Display how much quota is available.", $model.showRemaining)
                 }
             }
@@ -47,7 +47,7 @@ struct AppearancePage: View {
                                 .accessibilityAddTraits(model.settings.menuBarStyle == style ? .isSelected : [])
                         }
                     }
-                    Text(L("Claude shows the session window. Codex shows the session window, or weekly usage when a session window is unavailable."))
+                    Text(L("Claude shows the session window. Codex and Gemini show the session window, or weekly usage when a session window is unavailable."))
                         .font(Typography.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -141,7 +141,7 @@ struct GeneralPage: View {
                     }.labelsHidden().frame(width: 130)
                 }
             }
-            SettingsCard("Notifications", subtitle: "Alerts for Claude and Codex session and weekly limits") {
+            SettingsCard("Notifications", subtitle: "Alerts for Claude, Codex and Gemini session and weekly limits") {
                 VStack(alignment: .leading, spacing: 14) {
                     SettingRow(title: "Enable notifications", detail: permissionDescription) {
                         Toggle(L("Enable notifications"), isOn: Binding(
@@ -240,7 +240,7 @@ struct PopoverSettingsPage: View {
             }
             SettingsCard("Usage Details") {
                 VStack(spacing: 16) {
-                    settingToggle("Per-model usage", "Show additional model limits reported by Claude.", $model.settings.showModels)
+                    settingToggle("Per-model usage", "Show additional model limits reported by Claude and Gemini.", $model.settings.showModels)
                     Divider()
                     settingToggle("Today's tokens", "Show tokens counted from this Mac's conversations.", $model.settings.showTokens)
                     Divider()
@@ -268,7 +268,7 @@ struct AppSettingsPage: View {
             SettingsCard("Startup") {
                 SettingRow(title: "Launch at login",
                            detail: launchFailed ? "Check System Settings › General › Login Items."
-                           : "Keep Claude and Codex usage in your menu bar.",
+                           : "Keep Claude, Codex and Gemini usage in your menu bar.",
                            detailColor: launchFailed ? .orange : .secondary) {
                     Toggle(L("Launch at login"), isOn: $launchAtLogin).labelsHidden().toggleStyle(.switch)
                         .disabled(store.isPreview)
@@ -279,7 +279,7 @@ struct AppSettingsPage: View {
                         }
                 }
             }
-            SettingsCard("QuotaBar", subtitle: "Claude and Codex usage, together") {
+            SettingsCard("QuotaBar", subtitle: "Claude, Codex and Gemini usage, together") {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(L("Your usage history stays on this Mac.")).font(Typography.body)
                     Text(L("Account credentials are read from your signed-in command-line tools. Sign in there to reconnect an account."))
@@ -296,6 +296,13 @@ struct AccountPage: View {
     @EnvironmentObject private var model: SettingsModel
     private var provider: ProviderKind { model.selectedProvider }
     private var status: ProviderStatus { store.statuses[provider] ?? ProviderStatus() }
+    private var signInInstructions: String {
+        switch provider {
+        case .claude: return "Open Terminal, run claude, and complete sign-in."
+        case .codex: return "Open Terminal and run codex login. For an expired session, run codex to refresh sign-in."
+        case .gemini: return "Open Terminal, run agy, and complete sign-in."
+        }
+    }
     var body: some View {
         SettingsPage(title: L("%@ Account", provider.displayName), subtitle: "Usage from your current CLI account") {
             SettingsCard {
@@ -322,11 +329,10 @@ struct AccountPage: View {
             }
             SettingsCard("Connection", subtitle: L("Sign in through the %@ CLI", provider.displayName)) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(L(provider == .claude ? "Open Terminal, run claude, and complete sign-in."
-                         : "Open Terminal and run codex login. For an expired session, run codex to refresh sign-in."))
+                    Text(L(signInInstructions))
                         .font(Typography.body)
                     HStack {
-                        Text(provider == .claude ? "claude" : "codex login")
+                        Text(provider.signInCommand)
                             .font(Typography.monospaced).textSelection(.enabled)
                         Spacer()
                         Button(L("Refresh usage")) { Task { await store.refresh(force: true) } }
@@ -479,7 +485,8 @@ struct DiagnosticsPage: View {
         Task {
             async let claude = (try? await ClaudeProvider().fetchRawJSON()) ?? "unavailable"
             async let codex = (try? await CodexProvider().fetchRawJSON()) ?? "unavailable"
-            let text = "=== Claude\n\(await claude)\n\n=== Codex\n\(await codex)"
+            async let gemini = (try? await GeminiProvider().fetchRawJSON()) ?? "unavailable"
+            let text = "=== Claude\n\(await claude)\n\n=== Codex\n\(await codex)\n\n=== Gemini\n\(await gemini)"
             await MainActor.run {
                 rawOutput = text
                 fetching = false

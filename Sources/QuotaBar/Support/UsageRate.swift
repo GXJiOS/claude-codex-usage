@@ -143,6 +143,8 @@ actor TranscriptRateSampler {
                 switch kind {
                 case .claude: tokens += claudeTokens(in: chunk, now: now)
                 case .codex: tokens += codexTokens(in: chunk, cumulative: &cursor.cumulative)
+                // Gemini has no transcript directory, so `drain` returns before this read.
+                case .gemini: break
                 }
             }
             cursorsForKind[url] = cursor

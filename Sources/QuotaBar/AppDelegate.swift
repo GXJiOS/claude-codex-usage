@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let store = preview
             ? UsageStore(providers: [], preview: PreviewData.statuses(state: argument("--preview-state") ?? "normal"))
-            : UsageStore(providers: [ClaudeProvider(), CodexProvider()])
+            : UsageStore(providers: [ClaudeProvider(), CodexProvider(), GeminiProvider()])
         self.store = store
         let notifications = UsageNotifications(enabled: !preview)
         self.notifications = notifications
@@ -52,11 +52,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// Explicit preview fixtures support visual checks with temporary preferences and isolated data.
 enum PreviewData {
     static func statuses(state: String = "normal", now: Date = Date()) -> [ProviderKind: ProviderStatus] {
-        if state == "empty" { return [.claude: ProviderStatus(), .codex: ProviderStatus()] }
-        if state == "loading" { return [.claude: ProviderStatus(isLoading: true), .codex: ProviderStatus(isLoading: true)] }
+        if state == "empty" { return [.claude: ProviderStatus(), .codex: ProviderStatus(), .gemini: ProviderStatus()] }
+        if state == "loading" {
+            return [.claude: ProviderStatus(isLoading: true), .codex: ProviderStatus(isLoading: true),
+                    .gemini: ProviderStatus(isLoading: true)]
+        }
         if state == "expired" {
             return [.claude: ProviderStatus(errorMessage: "Token expired. Run claude to refresh sign-in."),
-                    .codex: ProviderStatus(errorMessage: "Token expired. Run codex to refresh sign-in.")]
+                    .codex: ProviderStatus(errorMessage: "Token expired. Run codex to refresh sign-in."),
+                    .gemini: ProviderStatus(errorMessage: "Not logged in. Run `agy` in Terminal and sign in.")]
         }
         let claude = UsageSnapshot(
             session: UsageWindow(usedPercent: 39, resetsAt: now.addingTimeInterval(4 * 3600)),
@@ -71,19 +75,32 @@ enum PreviewData {
             resetCredits: ResetCredits(availableCount: 2, earliestExpiry: now.addingTimeInterval(12 * 86_400)),
             tokensToday: 864_000, fetchedAt: fallback ? now.addingTimeInterval(-7200) : now,
             sourceNote: fallback ? "Session log from two hours ago. Live request: token expired. Run codex to refresh sign-in." : nil)
-        return [.claude: ProviderStatus(snapshot: claude), .codex: ProviderStatus(snapshot: codex)]
+        let gemini = UsageSnapshot(
+            session: UsageWindow(usedPercent: 18, resetsAt: now.addingTimeInterval(3 * 3600)),
+            weekly: UsageWindow(usedPercent: 12, resetsAt: now.addingTimeInterval(5 * 86_400)),
+            extras: [LabeledWindow(label: "Argon", window: UsageWindow(usedPercent: 5, resetsAt: now.addingTimeInterval(6 * 86_400)))],
+            planLabel: nil, fetchedAt: now, sourceNote: nil)
+        return [.claude: ProviderStatus(snapshot: claude), .codex: ProviderStatus(snapshot: codex),
+                .gemini: ProviderStatus(snapshot: gemini)]
     }
 
     static func history(now: Date = Date()) -> [HistoryRecord] {
         (0..<193).flatMap { index -> [HistoryRecord] in
             let at = now.addingTimeInterval(Double(index - 192) * 900)
             return ProviderKind.allCases.map { provider in
-                let shift = provider == .claude ? 0 : 7
+                let shift: Int, weeklySlope: Double
+                switch provider {
+                case .claude: (shift, weeklySlope) = (0, 0.20)
+                case .codex: (shift, weeklySlope) = (7, 0.30)
+                case .gemini: (shift, weeklySlope) = (13, 0.15)
+                }
                 return HistoryRecord(at: at, provider: provider.rawValue,
                                      session: Double((index + shift) % 20) * 4.7,
-                                     weekly: 22 + Double(index) * (provider == .claude ? 0.20 : 0.30),
-                                     tokensToday: (Calendar.current.component(.hour, from: at) * 4
-                                                   + Calendar.current.component(.minute, from: at) / 15) * 13_000)
+                                     weekly: 22 + Double(index) * weeklySlope,
+                                     // Gemini reports quota only; it has no local token log.
+                                     tokensToday: provider == .gemini ? nil
+                                        : (Calendar.current.component(.hour, from: at) * 4
+                                           + Calendar.current.component(.minute, from: at) / 15) * 13_000)
             }
         }
     }

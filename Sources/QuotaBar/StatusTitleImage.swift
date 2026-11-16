@@ -52,7 +52,8 @@ enum StatusTitleImage {
         let font = NSFont.monospacedDigitSystemFont(ofSize: stackedLabels ? 10 : 12, weight: .semibold)
         let labelFont = NSFont.systemFont(ofSize: stackedLabels ? 7 : 11, weight: .medium)
         let providerGap: CGFloat = isBadge || stackedLabels ? 4 : 12
-        let indicatorWidths: [CGFloat] = ProviderKind.allCases.map { provider in
+        let providers = ProviderKind.allCases
+        let indicatorWidths: [CGFloat] = providers.map { provider in
             switch settings.menuBarStyle {
             case .battery: return 28
             case .bar: return 32
@@ -71,7 +72,7 @@ enum StatusTitleImage {
         }
         // The rider sits at the head of its provider's column.
         let cyclistWidth: CGFloat = withRiders ? CyclistSprite.size.width + 2 : 0
-        let nameWidths = ProviderKind.allCases.map {
+        let nameWidths = providers.map {
             settings.showLabels ? ceil(($0.displayName as NSString).size(withAttributes: [.font: labelFont]).width) : 0
         }
         let labelWidths = nameWidths.map { !stackedLabels && !isBadge && settings.showLabels ? $0 + 4 : 0 }
@@ -79,13 +80,13 @@ enum StatusTitleImage {
             cyclistWidth + (stackedLabels ? max(indicatorWidths[$0], nameWidths[$0] + 2)
                                           : indicatorWidths[$0] + labelWidths[$0])
         }
-        let totalWidth = columnWidths.reduce(0, +) + providerGap
+        let totalWidth = columnWidths.reduce(0, +) + providerGap * CGFloat(max(0, providers.count - 1))
         let size = NSSize(width: totalWidth, height: 22)
 
         var riders: [ProviderKind: StatusTitleLayout.Rider] = [:]
         if withRiders {
             var origin: CGFloat = 0
-            for (index, provider) in ProviderKind.allCases.enumerated() {
+            for (index, provider) in providers.enumerated() {
                 defer { origin += columnWidths[index] + providerGap }
                 // A provider with no numbers yet gets a plain rider rather than a colour
                 // that would read as a usage level.
@@ -100,7 +101,7 @@ enum StatusTitleImage {
 
         let base = bitmap(size: size) {
             var origin: CGFloat = cyclistWidth
-            for (index, provider) in ProviderKind.allCases.enumerated() {
+            for (index, provider) in providers.enumerated() {
                 let indicatorWidth = indicatorWidths[index]
                 let columnWidth = columnWidths[index] - cyclistWidth
                 let labelWidth = labelWidths[index]

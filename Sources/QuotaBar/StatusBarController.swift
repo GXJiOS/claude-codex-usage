@@ -1,7 +1,7 @@
 import AppKit
 import Combine
 
-/// Both providers share a native menu with aligned values, quota chips, and account details.
+/// Every provider shares a native menu with aligned values, quota chips, and account details.
 @MainActor
 final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
     /// The same rendered frame displayed by the native status item.
@@ -383,7 +383,7 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
     }
 }
 
-/// Shared menu actions sit beside the update status above both provider sections.
+/// Shared menu actions sit beside the update status above the provider sections.
 private final class MenuToolbarView: NSView {
     var onRefresh: (() -> Void)?
     var onSettings: (() -> Void)?

@@ -27,15 +27,17 @@
 "Add a threshold to receive usage alerts." = "Add a threshold to receive usage alerts.";
 "Add threshold" = "Add threshold";
 "Alert thresholds" = "Alert thresholds";
-"Alerts for Claude and Codex session and weekly limits" = "Alerts for Claude and Codex session and weekly limits";
+"Alerts for Claude, Codex and Gemini session and weekly limits" = "Alerts for Claude, Codex and Gemini session and weekly limits";
 "All models" = "All models";
 "App Settings" = "App Settings";
 "Appearance" = "Appearance";
-"Applies to both providers" = "Applies to both providers";
+"Applies to all providers" = "Applies to all providers";
 "Available quota resets" = "Available quota resets";
 "Baseline" = "Baseline";
 "Battery" = "Battery";
 "Both" = "Both";
+"Install the Antigravity CLI, then run `agy` and sign in." = "Install the Antigravity CLI, then run `agy` and sign in.";
+"Open Terminal, run agy, and complete sign-in." = "Open Terminal, run agy, and complete sign-in.";
 "Both providers stay visible side by side" = "Both providers stay visible side by side";
 "Changes apply immediately and are saved for the next launch." = "Changes apply immediately and are saved for the next launch.";
 "Check System Settings › General › Login Items." = "Check System Settings › General › Login Items.";
@@ -43,8 +45,8 @@
 "Choose the details shown when you open the menu bar" = "Choose the details shown when you open the menu bar";
 "Choose your preferred language." = "Choose your preferred language.";
 "Claude and Codex usage" = "Claude and Codex usage";
-"Claude and Codex usage, together" = "Claude and Codex usage, together";
-"Claude shows the session window. Codex shows the session window, or weekly usage when a session window is unavailable." = "Claude shows the session window. Codex shows the session window, or weekly usage when a session window is unavailable.";
+"Claude, Codex and Gemini usage, together" = "Claude, Codex and Gemini usage, together";
+"Claude shows the session window. Codex and Gemini show the session window, or weekly usage when a session window is unavailable." = "Claude shows the session window. Codex and Gemini show the session window, or weekly usage when a session window is unavailable.";
 "Close window" = "Close window";
 "Codex full resets" = "Codex full resets";
 "Badge Percentage" = "Badge Percentage";
@@ -55,7 +57,7 @@
 "Connection status" = "Connection status";
 "Copy" = "Copy";
 "Custom notification threshold" = "Custom notification threshold";
-"Customize how Claude and Codex appear in your menu bar" = "Customize how Claude and Codex appear in your menu bar";
+"Customize how Claude, Codex and Gemini appear in your menu bar" = "Customize how Claude, Codex and Gemini appear in your menu bar";
 "Dark" = "Dark";
 "Day" = "Day";
 "Diagnostics" = "Diagnostics";
@@ -87,7 +89,7 @@
 "Icon Style" = "Icon Style";
 "Identify Claude with C and Codex with X." = "Identify Claude with C and Codex with X.";
 "Indicator colors" = "Indicator colors";
-"Keep Claude and Codex usage in your menu bar." = "Keep Claude and Codex usage in your menu bar.";
+"Keep Claude, Codex and Gemini usage in your menu bar." = "Keep Claude, Codex and Gemini usage in your menu bar.";
 "Keep samples for" = "Keep samples for";
 "Keychain item has no claudeAiOauth entry; run `claude` and log in." = "Keychain item has no claudeAiOauth entry; run `claude` and log in.";
 "Language" = "Language";
@@ -166,7 +168,7 @@
 "Session window" = "Session window";
 "Settings" = "Settings";
 "Settings…" = "Settings…";
-"Show additional model limits reported by Claude." = "Show additional model limits reported by Claude.";
+"Show additional model limits reported by Claude and Gemini." = "Show additional model limits reported by Claude and Gemini.";
 "Show available reset count and earliest expiry." = "Show available reset count and earliest expiry.";
 "Show provider labels" = "Show provider labels";
 "Show remaining percentage" = "Show remaining percentage";

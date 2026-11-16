@@ -10,11 +10,12 @@ if CommandLine.arguments.contains("--once") {
             defer { group.leave() }
             do { print("=== Claude\n" + (try await ClaudeProvider().fetchRawJSON())) } catch { print("Claude ERROR: \(error.localizedDescription)") }
             do { print("\n=== Codex\n" + (try await CodexProvider().fetchRawJSON())) } catch { print("Codex ERROR: \(error.localizedDescription)") }
+            do { print("\n=== Gemini\n" + (try await GeminiProvider().fetchRawJSON())) } catch { print("Gemini ERROR: \(error.localizedDescription)") }
         }
         group.wait()
         exit(0)
     }
-    let providers: [any UsageProvider] = [ClaudeProvider(), CodexProvider()]
+    let providers: [any UsageProvider] = [ClaudeProvider(), CodexProvider(), GeminiProvider()]
     let group = DispatchGroup()
     for provider in providers {
         group.enter()

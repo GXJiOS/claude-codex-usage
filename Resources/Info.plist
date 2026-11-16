@@ -27,6 +27,6 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>Menu bar quota monitor for Claude Code and Codex.</string>
+	<string>Menu bar quota monitor for Claude Code, Codex and Gemini.</string>
 </dict>
 </plist>

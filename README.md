@@ -1,17 +1,17 @@
 # QuotaBar
 
-Native macOS menu bar monitor for Claude Code and Codex quotas, with a compact usage menu and a settings window. Both providers appear together in the menu. Refresh and Settings sit at the top right; platform names are shown in full in the menu bar.
+Native macOS menu bar monitor for Claude Code, Codex and Gemini quotas, with a compact usage menu and a settings window. Every provider appears in the usage menu and the menu bar. Refresh and Settings sit at the top right; platform names are shown in full in the menu bar.
 
 - **Appearance**: battery, progress bar, percentage, badge percentage, or ring indicators; usage, monochrome, or accent colors; system, light, or dark theme. Badge percentages use rounded green/yellow/red backgrounds in usage-color mode. The preview and menu bar use the same renderer.
-- **Usage menu**: session and weekly quota, Claude per-model limits, local daily tokens, Codex full-reset count and earliest expiry. Reset times can show the date, countdown, or both. Missing windows and saved-log data are labeled explicitly.
+- **Usage menu**: session and weekly quota, Claude per-model limits, Gemini's Argon weekly limit on its own row, local daily tokens, Codex full-reset count and earliest expiry. Reset times can show the date, countdown, or both. Missing windows and saved-log data are labeled explicitly.
 - **History**: provider filter, 5-hour / 24-hour / 7-day / 30-day / 90-day ranges, previous/next navigation, and JSON/CSV export of the visible samples. Daily token bars show the highest daily count observed in the selected range.
 - **Notifications**: optional session and weekly thresholds (75%, 90%, 95% by default), custom thresholds, sound, and quota-reset alerts. macOS permission is requested when notifications are enabled. Deduplication is persisted per account and quota window; API reset dates identify new windows. Saved-log fallback data does not trigger alerts.
 - **Settings**: refresh interval, login startup, history retention, read-only account status, and raw-response diagnostics. The usage menu supports ⌘R and ⌘,; settings supports ⌘W.
 - **Language**: choose 简体中文 or English in App Settings → Language. Switching updates the interface, menu, notifications, dates, and token units immediately, and saves the choice for future launches. The first launch selects Simplified Chinese for a Chinese system language and English otherwise. Account/model names, exported field names, and raw diagnostic data retain their original values.
 
-The menu bar shows Claude's session window and Codex's session window, falling back to Codex's weekly window when the API supplies only that window. Appearance → Usage Color Thresholds sets the warning and critical boundaries. Defaults are green below 50%, warning from 50%, and red from 80%. Yellow begins at the warning boundary; plain indicators retain their orange warning tint. Green updates automatically, and Restore Defaults restores 50% / 80%. The boundaries must satisfy 1 ≤ yellow < red ≤ 100. Colors always follow consumed quota in both used and remaining display modes. Color settings are independent of notification thresholds.
+The menu bar shows Claude's session window, and Codex's and Gemini's session windows, each falling back to its weekly window when only that window is reported. Appearance → Usage Color Thresholds sets the warning and critical boundaries. Defaults are green below 50%, warning from 50%, and red from 80%. Yellow begins at the warning boundary; plain indicators retain their orange warning tint. Green updates automatically, and Restore Defaults restores 50% / 80%. The boundaries must satisfy 1 ≤ yellow < red ≤ 100. Colors always follow consumed quota in both used and remaining display modes. Color settings are independent of notification thresholds.
 
-Today's tokens come from this Mac's local transcripts: Claude Code `~/.claude/projects/**/*.jsonl` (`message.usage`, input + output + cache creation + cache read, largest value per message id), and Codex `~/.codex/sessions/**/*.jsonl` (`token_count` events, today's growth of the per-session cumulative `total_token_usage`). Other devices are not included.
+Today's tokens come from this Mac's local transcripts: Claude Code `~/.claude/projects/**/*.jsonl` (`message.usage`, input + output + cache creation + cache read, largest value per message id), and Codex `~/.codex/sessions/**/*.jsonl` (`token_count` events, today's growth of the per-session cumulative `total_token_usage`). Other devices are not included. Gemini has no readable local transcript, so its section shows quota only: no daily tokens, token rate, or moving rider.
 
 History uses the existing `~/Library/Application Support/QuotaBar/history.jsonl` format, sampled at most once per provider every 15 minutes. Retention choices are 7, 30, 90, and 365 days; pruning runs at launch.
 
@@ -46,6 +46,7 @@ Code and Codex to be signed in there.
 |---|---|---|
 | Claude | Keychain item `Claude Code-credentials` → `claudeAiOauth.accessToken` | `GET https://api.anthropic.com/api/oauth/usage` (windows; `limits[]` kind `weekly_scoped` carries per-model caps), `GET …/api/oauth/profile` (`account.email`, fetched once per launch). Both with `anthropic-beta: oauth-2025-04-20`. |
 | Codex | `~/.codex/auth.json` → `tokens.access_token` + `tokens.account_id` | `GET https://chatgpt.com/backend-api/wham/usage` (windows, `email`, `rate_limit_reset_credits.available_count`), `GET …/wham/rate-limit-reset-credits` (credit expiries). Both with `chatgpt-account-id`. |
+| Gemini | Antigravity CLI's own sign-in (`agy`, looked up in `~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`) | `agy -p "/usage" --output-format json --log-file /dev/null`: read-only, no agent turn, no quota spent. `command.data.groups[].buckets[]`: `gemini-5h` → session, `gemini-weekly` → weekly, the Argon bucket → its own row; used % = `(1 − remaining_fraction) × 100`, and a missing `remaining_fraction` means the bucket is spent. The "Claude and GPT models" group is left out. |
 
 `./build/QuotaBar.app/Contents/MacOS/QuotaBar --once --raw` prints every response verbatim (contains the account email).
 
@@ -61,6 +62,7 @@ QuotaBar never refreshes or writes credentials. When a token expires the menu sa
 
 - Claude: run `claude` once, it refreshes the Keychain item.
 - Codex: run `codex` once, it refreshes `auth.json`.
+- Gemini: run `agy` and sign in; the CLI keeps its own token fresh.
 
 First launch triggers a Keychain permission dialog for `Claude Code-credentials`; choose
 **Always Allow**. The app is signed with a stable Apple Development identity so the grant survives rebuilds.

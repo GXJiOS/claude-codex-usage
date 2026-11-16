@@ -197,8 +197,15 @@ struct MaterialBackground: NSViewRepresentable {
 
 struct ProviderMark: View {
     let provider: ProviderKind
+    private var symbol: String {
+        switch provider {
+        case .claude: return "sparkle"
+        case .codex: return "circle.hexagongrid"
+        case .gemini: return "diamond"
+        }
+    }
     var body: some View {
-        Image(systemName: provider == .claude ? "sparkle" : "circle.hexagongrid")
+        Image(systemName: symbol)
             .accessibilityLabel(provider.displayName)
     }
 }

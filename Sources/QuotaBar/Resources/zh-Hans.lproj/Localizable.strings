@@ -48,8 +48,6 @@
 "Choose your preferred language." = "选择应用显示语言。";
 "Claude, Codex and Gemini usage, together" = "统一查看 Claude、Codex 和 Gemini 用量";
 "Claude shows the session window. Codex and Gemini show the session window, or weekly usage when a session window is unavailable." = "Claude 显示会话额度。Codex 和 Gemini 优先显示会话额度；账号未提供会话数据时，显示每周额度。";
-"Claude/GPT session" = "Claude/GPT 会话";
-"Claude/GPT weekly" = "Claude/GPT 每周";
 "Close window" = "关闭窗口";
 "Codex full resets" = "Codex 完整重置次数";
 "Badge Percentage" = "底色百分比";

@@ -99,8 +99,7 @@ final class GeminiProvider: UsageProvider {
 
     /// Maps `command.data.groups[].buckets[]`: `gemini-5h` is the session window,
     /// `gemini-weekly` the weekly window, and the Argon bucket its own per-model row.
-    /// The "Claude and GPT models" group is Antigravity's own quota for those models
-    /// (`3p-5h`, `3p-weekly`), listed as two more rows after Argon.
+    /// The "Claude and GPT models" group stays out of the menu.
     static func snapshot(from data: Data, accountLabel: String? = nil, now: Date) throws -> UsageSnapshot {
         let root = try JSON.object(from: data)
         let status = JSON.string(root["status"]) ?? "?"
@@ -113,7 +112,6 @@ final class GeminiProvider: UsageProvider {
         var session: UsageWindow?
         var weekly: UsageWindow?
         var extras: [LabeledWindow] = []
-        var thirdParty: [String: UsageWindow] = [:]
         var seenIDs: [String] = []
         for group in groups {
             for bucket in group["buckets"] as? [[String: Any]] ?? [] {
@@ -129,13 +127,8 @@ final class GeminiProvider: UsageProvider {
                     weekly = window
                 } else if id.contains("argon"), !extras.contains(where: { $0.label == "Argon" }) {
                     extras.append(LabeledWindow(label: "Argon", window: window))
-                } else if thirdPartyRows.contains(where: { $0.id == id }), thirdParty[id] == nil {
-                    thirdParty[id] = window
                 }
             }
-        }
-        for row in thirdPartyRows {
-            if let window = thirdParty[row.id] { extras.append(LabeledWindow(label: row.label, window: window)) }
         }
         guard session != nil || weekly != nil else {
             throw ProviderError.decoding("no gemini-5h/gemini-weekly bucket in \(seenIDs)")
@@ -143,8 +136,4 @@ final class GeminiProvider: UsageProvider {
         return UsageSnapshot(session: session, weekly: weekly, extras: extras, planLabel: nil,
                              accountLabel: accountLabel, fetchedAt: now, sourceNote: nil)
     }
-
-    /// Labels are localization keys; the menu translates them when it draws the row.
-    private static let thirdPartyRows = [(id: "3p-5h", label: "Claude/GPT session"),
-                                         (id: "3p-weekly", label: "Claude/GPT weekly")]
 }

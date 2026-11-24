@@ -20,23 +20,15 @@ final class GeminiProviderTests: XCTestCase {
         """.utf8)
     }
 
-    func testMapsGeminiWindowsArgonAndClaudeGPTRows() throws {
+    func testMapsGeminiWindowsAndArgonRow() throws {
         let snapshot = try GeminiProvider.snapshot(from: usageJSON(), accountLabel: "g@example.test", now: Date())
         XCTAssertEqual(try XCTUnwrap(snapshot.session?.usedPercent), 0, accuracy: 0.001)
         XCTAssertEqual(try XCTUnwrap(snapshot.weekly?.usedPercent), 12, accuracy: 0.001)
         XCTAssertEqual(snapshot.session?.resetsAt, ISO8601DateFormatter().date(from: "2026-11-16T07:00:41Z"))
-        XCTAssertEqual(snapshot.extras.map(\.label), ["Argon", "Claude/GPT session", "Claude/GPT weekly"])
-        XCTAssertEqual(snapshot.extras.map { ($0.window.usedPercent * 1000).rounded() / 1000 }, [5, 80, 90])
-        XCTAssertEqual(snapshot.extras[1].window.resetsAt, ISO8601DateFormatter().date(from: "2026-11-16T06:27:46Z"))
+        XCTAssertEqual(snapshot.extras.map(\.label), ["Argon"], "the Claude and GPT group stays out")
+        XCTAssertEqual(try XCTUnwrap(snapshot.extras.first?.window.usedPercent), 5, accuracy: 0.001)
         XCTAssertEqual(snapshot.accountLabel, "g@example.test")
         XCTAssertNil(snapshot.tokensToday)
-    }
-
-    func testClaudeGPTRowLabelsTranslateAndModelNamesStay() {
-        XCTAssertEqual(L10n.text("Claude/GPT session", language: .simplifiedChinese), "Claude/GPT 会话")
-        XCTAssertEqual(L10n.text("Claude/GPT weekly", language: .simplifiedChinese), "Claude/GPT 每周")
-        XCTAssertEqual(L10n.text("Claude/GPT weekly", language: .english), "Claude/GPT weekly")
-        XCTAssertEqual(L10n.text("Argon", language: .simplifiedChinese), "Argon")
     }
 
     func testAccountEmailComesFromTheAuthLogLine() {
@@ -72,7 +64,7 @@ final class GeminiProviderTests: XCTestCase {
             GeminiProvider.UsageReply(data: json, accountEmail: "g@example.test")
         })
         let snapshot = try await provider.fetch()
-        XCTAssertEqual(snapshot.extras.count, 3)
+        XCTAssertEqual(snapshot.extras.count, 1)
         XCTAssertEqual(snapshot.accountLabel, "g@example.test")
         let raw = try await provider.fetchRawJSON()
         XCTAssertTrue(raw.contains("gemini-argon-wtu-weekly"))
@@ -105,7 +97,7 @@ final class GeminiProviderTests: XCTestCase {
         let cli = try fakeCLI(printing: usageJSON(), exitCode: 0,
                               logLine: "server_oauth.go:221] applyAuthResult: email=g@example.test, authMethod=consumer")
         let reply = try GeminiProvider.runCLI(executable: cli)
-        XCTAssertEqual(try GeminiProvider.snapshot(from: reply.data, now: Date()).extras.count, 3)
+        XCTAssertEqual(try GeminiProvider.snapshot(from: reply.data, now: Date()).extras.map(\.label), ["Argon"])
         XCTAssertEqual(reply.accountEmail, "g@example.test")
         let logPath = try String(contentsOf: cli.deletingLastPathComponent().appendingPathComponent("log-path.txt"), encoding: .utf8)
         XCTAssertTrue(logPath.hasPrefix(FileManager.default.temporaryDirectory.path), logPath)
@@ -118,7 +110,7 @@ final class GeminiProviderTests: XCTestCase {
         }
         let reply = try GeminiProvider.runCLI()
         XCTAssertEqual(reply.accountEmail?.contains("@"), true)
-        XCTAssertFalse(try GeminiProvider.snapshot(from: reply.data, now: Date()).extras.isEmpty)
+        XCTAssertNotNil(try GeminiProvider.snapshot(from: reply.data, now: Date()).weekly)
     }
 
     func testFailedExitIsAnErrorEvenWithAReply() throws {

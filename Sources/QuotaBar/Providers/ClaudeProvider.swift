@@ -7,13 +7,19 @@ import os
 final class ClaudeProvider: UsageProvider, @unchecked Sendable {
     let kind: ProviderKind = .claude
 
+    private struct Profile {
+        let email: String
+        /// `organization.plan_display_name`, the plan name claude.ai shows ("Ultra", "Pro", …).
+        let plan: String?
+    }
+
     private struct AccountCache {
         let credentialID: SHA256.Digest
-        let email: String
+        let profile: Profile
     }
 
     /// Reuses the profile while the credential fingerprint matches the current login.
-    private let cachedEmail = OSAllocatedUnfairLock<AccountCache?>(initialState: nil)
+    private let cachedProfile = OSAllocatedUnfairLock<AccountCache?>(initialState: nil)
 
     private let readCredentials: @Sendable () throws -> Data
     private let get: @Sendable (URL, [String: String]) async throws -> HTTP.Response
@@ -124,31 +130,37 @@ final class ClaudeProvider: UsageProvider, @unchecked Sendable {
             if let sonnet = window("seven_day_sonnet") { extras.append(LabeledWindow(label: "Sonnet", window: sonnet)) }
         }
 
+        let profile = await loadProfile(with: credentials)
         return UsageSnapshot(
             session: session,
             weekly: weekly,
             extras: extras,
-            planLabel: credentials.plan,
-            accountLabel: await accountEmail(with: credentials),
+            planLabel: profile?.plan ?? credentials.plan,
+            accountLabel: profile?.email,
             tokensToday: tokensToday(),
             fetchedAt: Date(),
             sourceNote: nil
         )
     }
 
-    /// `account.email` from the OAuth profile endpoint; nil (and retried next refresh) on any failure.
-    private func accountEmail(with credentials: Credentials) async -> String? {
+    /// `account.email` and the plan name from the OAuth profile endpoint; nil (and retried
+    /// next refresh) on any failure.
+    private func loadProfile(with credentials: Credentials) async -> Profile? {
         let credentialID = SHA256.hash(data: Data(credentials.accessToken.utf8))
-        if let email = cachedEmail.withLock({ cache in
-            cache?.credentialID == credentialID ? cache?.email : nil
-        }) { return email }
+        if let profile = cachedProfile.withLock({ cache in
+            cache?.credentialID == credentialID ? cache?.profile : nil
+        }) { return profile }
 
         guard let response = try? await request(Self.profileURL, with: credentials), response.status == 200,
               let root = try? JSON.object(from: response.data),
               let account = root["account"] as? [String: Any],
               let email = JSON.string(account["email"]), !email.isEmpty else { return nil }
-        cachedEmail.withLock { $0 = AccountCache(credentialID: credentialID, email: email) }
-        return email
+        let plan = (root["organization"] as? [String: Any])
+            .flatMap { JSON.string($0["plan_display_name"]) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+        let profile = Profile(email: email, plan: plan)
+        cachedProfile.withLock { $0 = AccountCache(credentialID: credentialID, profile: profile) }
+        return profile
     }
 
     private func loadCredentials() throws -> Credentials {

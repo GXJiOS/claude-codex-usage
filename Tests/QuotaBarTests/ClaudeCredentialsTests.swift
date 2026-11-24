@@ -8,6 +8,7 @@ final class ClaudeCredentialsTests: XCTestCase {
         struct State {
             var token = "fixture-a"
             var failProfile = false
+            var profilePlan: String?
             var profileCalls = 0
             var credentialError: OSStatus?
         }
@@ -27,14 +28,14 @@ final class ClaudeCredentialsTests: XCTestCase {
             return ClaudeProvider(readCredentials: reader, get: { [self] url, headers in
                 let isA = headers["Authorization"]?.hasPrefix("Bearer fixture-a") == true
                 if url.path.hasSuffix("/profile") {
-                    let fail = state.withLock { state in
+                    let (fail, plan) = state.withLock { state in
                         state.profileCalls += 1
-                        return state.failProfile
+                        return (state.failProfile, state.profilePlan)
                     }
                     if fail { return HTTP.Response(status: 503, data: Data()) }
-                    return HTTP.Response(status: 200, data: try JSONSerialization.data(withJSONObject: [
-                        "account": ["email": isA ? "a@example.test" : "b@example.test"]
-                    ]))
+                    var profile: [String: Any] = ["account": ["email": isA ? "a@example.test" : "b@example.test"]]
+                    if let plan { profile["organization"] = ["plan_display_name": plan] }
+                    return HTTP.Response(status: 200, data: try JSONSerialization.data(withJSONObject: profile))
                 }
                 return HTTP.Response(status: 200, data: try JSONSerialization.data(withJSONObject: [
                     "five_hour": ["utilization": isA ? 21 : 62],
@@ -59,6 +60,18 @@ final class ClaudeCredentialsTests: XCTestCase {
         XCTAssertEqual(b.session?.usedPercent, 62)
         XCTAssertEqual(b.weekly?.usedPercent, 73)
         XCTAssertEqual(fixture.state.withLock { $0.profileCalls }, 2)
+    }
+
+    func testProfilePlanNameOverridesKeychainSubscriptionType() async throws {
+        let fixture = Fixture()
+        fixture.state.withLock { $0.profilePlan = "Ultra" }
+        let provider = fixture.provider()
+        let first = try await provider.fetch()
+        XCTAssertEqual(first.planLabel, "Ultra")
+        XCTAssertEqual(first.session?.usedPercent, 21)
+        let cached = try await provider.fetch()
+        XCTAssertEqual(cached.planLabel, "Ultra")
+        XCTAssertEqual(fixture.state.withLock { $0.profileCalls }, 1)
     }
 
     func testTokenRotationRefreshesProfileAndStableTokenUsesCache() async throws {

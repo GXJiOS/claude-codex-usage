@@ -62,10 +62,11 @@ final class GeminiProviderTests: XCTestCase {
     func testRawFetchUsesInjectedCommand() async throws {
         let provider = GeminiProvider(runUsage: { [json = usageJSON()] in
             GeminiProvider.UsageReply(data: json, accountEmail: "g@example.test")
-        })
+        }, tokensToday: { 1_234 })
         let snapshot = try await provider.fetch()
         XCTAssertEqual(snapshot.extras.count, 1)
         XCTAssertEqual(snapshot.accountLabel, "g@example.test")
+        XCTAssertEqual(snapshot.tokensToday, 1_234)
         let raw = try await provider.fetchRawJSON()
         XCTAssertTrue(raw.contains("gemini-argon-wtu-weekly"))
     }

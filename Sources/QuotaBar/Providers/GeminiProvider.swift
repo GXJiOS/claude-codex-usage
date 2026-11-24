@@ -13,9 +13,14 @@ final class GeminiProvider: UsageProvider {
     }
 
     private let runUsage: @Sendable () throws -> UsageReply
+    private let tokensToday: @Sendable () -> Int?
 
-    init(runUsage: @escaping @Sendable () throws -> UsageReply = { try GeminiProvider.runCLI() }) {
+    init(runUsage: @escaping @Sendable () throws -> UsageReply = { try GeminiProvider.runCLI() },
+         tokensToday: @escaping @Sendable () -> Int? = {
+        TokenLog.geminiTokensToday(conversationsDir: AgyStore.conversationsDir)
+    }) {
         self.runUsage = runUsage
+        self.tokensToday = tokensToday
     }
 
     static let signInHint = "Run `agy` in Terminal and sign in."
@@ -84,7 +89,7 @@ final class GeminiProvider: UsageProvider {
 
     func fetch() async throws -> UsageSnapshot {
         let reply = try await usage()
-        return try Self.snapshot(from: reply.data, accountLabel: reply.accountEmail, now: Date())
+        return try Self.snapshot(from: reply.data, accountLabel: reply.accountEmail, tokensToday: tokensToday(), now: Date())
     }
 
     /// Runs the blocking CLI call off the cooperative thread pool.
@@ -100,7 +105,8 @@ final class GeminiProvider: UsageProvider {
     /// Maps `command.data.groups[].buckets[]`: `gemini-5h` is the session window,
     /// `gemini-weekly` the weekly window, and the Argon bucket its own per-model row.
     /// The "Claude and GPT models" group stays out of the menu.
-    static func snapshot(from data: Data, accountLabel: String? = nil, now: Date) throws -> UsageSnapshot {
+    static func snapshot(from data: Data, accountLabel: String? = nil, tokensToday: Int? = nil,
+                         now: Date) throws -> UsageSnapshot {
         let root = try JSON.object(from: data)
         let status = JSON.string(root["status"]) ?? "?"
         guard status == "SUCCESS" else {
@@ -134,6 +140,6 @@ final class GeminiProvider: UsageProvider {
             throw ProviderError.decoding("no gemini-5h/gemini-weekly bucket in \(seenIDs)")
         }
         return UsageSnapshot(session: session, weekly: weekly, extras: extras, planLabel: nil,
-                             accountLabel: accountLabel, fetchedAt: now, sourceNote: nil)
+                             accountLabel: accountLabel, tokensToday: tokensToday, fetchedAt: now, sourceNote: nil)
     }
 }

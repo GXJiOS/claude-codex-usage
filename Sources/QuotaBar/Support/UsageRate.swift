@@ -56,17 +56,21 @@ struct CadenceThresholds: Codable, Equatable, Sendable {
     }
 }
 
-/// Tails the transcripts both CLIs write on this Mac and reports the tokens appended
+/// Tails the transcripts the CLIs write on this Mac and reports the tokens appended
 /// since the previous call. Averaging those deltas into a rate is `RateWindow`'s job.
+/// Claude and Codex write JSONL transcripts; agy records each model call as a row in its
+/// conversation's SQLite database (see `AgyStore`).
 ///
 /// Throughput counts input, output and cache *creation* tokens, and leaves cache reads
 /// out: a single Claude request reads ~431k cached tokens against ~750 of real work, and
 /// a Codex session logs 84M cached against 3M — counting them would peg every provider at
 /// full speed. With cache reads excluded both providers land on the same distribution,
-/// so they share one set of thresholds.
+/// so they share one set of thresholds. agy calls count input, output and thinking.
 ///
 /// Only bytes appended since the previous sample are read, and a file first seen is
 /// picked up at its current end, so history never registers as present-moment work.
+/// An agy conversation first seen is picked up at its newest call, unless the database
+/// was created after the sampler started.
 actor TranscriptRateSampler {
     /// Files untouched for longer than this are not worth reopening.
     private static let activeFileWindow: TimeInterval = 10 * 60
@@ -82,14 +86,24 @@ actor TranscriptRateSampler {
         var lastSeen = Date()
     }
 
+    /// The newest agy call counted in a conversation database, and how much of it.
+    private struct GenerationCursor {
+        var index: Int
+        var counted: Int
+        var lastSeen: Date
+    }
+
     private let directories: [ProviderKind: URL]
+    private let startedAt: Date
     private var cursors: [ProviderKind: [URL: Cursor]] = [:]
+    private var generationCursors: [URL: GenerationCursor] = [:]
     /// Claude streams one line per content block of the same message, with usage growing
     /// as the response completes; only the growth of each id counts.
     private var claudeMessages: [String: (value: Int, at: Date)] = [:]
 
-    init(directories: [ProviderKind: URL] = TranscriptRateSampler.defaultDirectories()) {
+    init(directories: [ProviderKind: URL] = TranscriptRateSampler.defaultDirectories(), startedAt: Date = Date()) {
         self.directories = directories
+        self.startedAt = startedAt
     }
 
     static func defaultDirectories() -> [ProviderKind: URL] {
@@ -101,7 +115,8 @@ actor TranscriptRateSampler {
             $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true)
         } ?? home.appendingPathComponent(".codex", isDirectory: true)
         return [.claude: claudeHome.appendingPathComponent("projects", isDirectory: true),
-                .codex: codexHome.appendingPathComponent("sessions", isDirectory: true)]
+                .codex: codexHome.appendingPathComponent("sessions", isDirectory: true),
+                .gemini: AgyStore.conversationsDir]
     }
 
     /// Effective tokens each provider has written since the previous call.
@@ -119,6 +134,7 @@ actor TranscriptRateSampler {
     /// Tokens appended to a provider's transcripts since the previous call.
     private func drain(_ kind: ProviderKind, now: Date) -> Int {
         guard let directory = directories[kind] else { return 0 }
+        if kind == .gemini { return drainGenerations(in: directory, now: now) }
         var cursorsForKind = cursors[kind, default: [:]]
         var tokens = 0
         for (url, size) in activeFiles(in: directory, now: now) {
@@ -143,13 +159,53 @@ actor TranscriptRateSampler {
                 switch kind {
                 case .claude: tokens += claudeTokens(in: chunk, now: now)
                 case .codex: tokens += codexTokens(in: chunk, cumulative: &cursor.cumulative)
-                // Gemini has no transcript directory, so `drain` returns before this read.
+                // agy calls are read from SQLite by `drainGenerations` before this loop.
                 case .gemini: break
                 }
             }
             cursorsForKind[url] = cursor
         }
         cursors[kind] = cursorsForKind.filter { now.timeIntervalSince($0.value.lastSeen) < Self.activeFileWindow }
+        return tokens
+    }
+
+    /// Work in agy calls recorded since the previous sample. A row is counted once, and the
+    /// newest row counts again only by what it grew since it was last read.
+    private func drainGenerations(in directory: URL, now: Date) -> Int {
+        var tokens = 0
+        for database in AgyStore.databases(in: directory, modifiedAfter: now.addingTimeInterval(-Self.activeFileWindow)) {
+            var cursor: GenerationCursor
+            let fromIndex: Int?
+            if let known = generationCursors[database] {
+                cursor = known
+                fromIndex = known.index
+            } else if let created = (try? database.resourceValues(forKeys: [.creationDateKey]))?.creationDate,
+                      created >= startedAt {
+                cursor = GenerationCursor(index: -1, counted: 0, lastSeen: now)
+                fromIndex = 0
+            } else {
+                guard let newest = AgyStore.generations(in: database, fromIndex: nil) else { continue }
+                // A conversation with no calls yet has nothing to skip.
+                generationCursors[database] = GenerationCursor(index: newest.last?.index ?? -1,
+                                                                counted: newest.last?.generation.effective ?? 0,
+                                                                lastSeen: now)
+                continue
+            }
+            cursor.lastSeen = now
+            for row in AgyStore.generations(in: database, fromIndex: fromIndex) ?? [] where row.index >= cursor.index {
+                let effective = row.generation.effective
+                if row.index == cursor.index {
+                    tokens += max(0, effective - cursor.counted)
+                    cursor.counted = max(cursor.counted, effective)
+                } else {
+                    tokens += effective
+                    cursor.index = row.index
+                    cursor.counted = effective
+                }
+            }
+            generationCursors[database] = cursor
+        }
+        generationCursors = generationCursors.filter { now.timeIntervalSince($0.value.lastSeen) < Self.activeFileWindow }
         return tokens
     }
 

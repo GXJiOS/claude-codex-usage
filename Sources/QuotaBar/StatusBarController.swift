@@ -139,7 +139,7 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
 
             if let snapshot = status.snapshot {
                 let labels = ["00000000", L("Session"), L("Weekly"), L("Today"), L("Resets")]
-                    + snapshot.extras.map(\.label)
+                    + snapshot.extras.map { L($0.label) }
                 let labelWidth = labels.map { text -> CGFloat in
                     let label = NSTextField(labelWithString: text)
                     label.font = detailFont
@@ -148,7 +148,7 @@ final class StatusBarController: NSObject, NSMenuDelegate, ObservableObject {
                 menu.addItem(usageItem(label: L("Session"), width: labelWidth, window: snapshot.session))
                 menu.addItem(usageItem(label: L("Weekly"), width: labelWidth, window: snapshot.weekly))
                 for extra in snapshot.extras where model.settings.showModels {
-                    menu.addItem(usageItem(label: extra.label, width: labelWidth, window: extra.window))
+                    menu.addItem(usageItem(label: L(extra.label), width: labelWidth, window: extra.window))
                 }
                 if model.settings.showResetCredits, let credits = snapshot.resetCredits {
                     menu.addItem(resetCreditsItem(label: L("Resets"), width: labelWidth, credits: credits))

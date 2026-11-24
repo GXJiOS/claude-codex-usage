@@ -48,6 +48,8 @@
 "Choose your preferred language." = "Choose your preferred language.";
 "Claude, Codex and Gemini usage, together" = "Claude, Codex and Gemini usage, together";
 "Claude shows the session window. Codex and Gemini show the session window, or weekly usage when a session window is unavailable." = "Claude shows the session window. Codex and Gemini show the session window, or weekly usage when a session window is unavailable.";
+"Claude/GPT session" = "Claude/GPT session";
+"Claude/GPT weekly" = "Claude/GPT weekly";
 "Close window" = "Close window";
 "Codex full resets" = "Codex full resets";
 "Badge Percentage" = "Badge Percentage";

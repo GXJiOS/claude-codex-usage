@@ -6,9 +6,15 @@ import Foundation
 final class GeminiProvider: UsageProvider {
     let kind: ProviderKind = .gemini
 
-    private let runUsage: @Sendable () throws -> Data
+    /// One `/usage` run: the JSON reply plus the account named in that run's log.
+    struct UsageReply: Sendable {
+        let data: Data
+        let accountEmail: String?
+    }
 
-    init(runUsage: @escaping @Sendable () throws -> Data = { try GeminiProvider.runCLI() }) {
+    private let runUsage: @Sendable () throws -> UsageReply
+
+    init(runUsage: @escaping @Sendable () throws -> UsageReply = { try GeminiProvider.runCLI() }) {
         self.runUsage = runUsage
     }
 
@@ -22,18 +28,37 @@ final class GeminiProvider: UsageProvider {
         return candidates.first { FileManager.default.isExecutableFile(atPath: $0.path) }
     }
 
-    /// One `/usage` call takes several seconds; `--log-file /dev/null` keeps polling from
-    /// leaving a CLI log file behind on every refresh.
-    static func runCLI(executable: URL? = executable()) throws -> Data {
+    /// One `/usage` call takes several seconds. The run logs to a temporary file that is read
+    /// for the signed-in account and then removed, so polling leaves no CLI log behind.
+    static func runCLI(executable: URL? = executable()) throws -> UsageReply {
         guard let executable else {
             throw ProviderError.notLoggedIn("Install the Antigravity CLI, then run `agy` and sign in.")
         }
+        let log = FileManager.default.temporaryDirectory.appendingPathComponent("quotabar-agy-\(UUID().uuidString).log")
+        defer { try? FileManager.default.removeItem(at: log) }
         let process = Process()
         process.executableURL = executable
-        process.arguments = ["-p", "/usage", "--output-format", "json", "--log-file", "/dev/null"]
+        process.arguments = ["-p", "/usage", "--output-format", "json", "--log-file", log.path]
         process.currentDirectoryURL = FileManager.default.temporaryDirectory
         let result = try Keychain.run(process, timeout: 45)
-        return try checkedOutput(exitCode: result.exitCode, data: result.data)
+        let data = try checkedOutput(exitCode: result.exitCode, data: result.data)
+        return UsageReply(data: data, accountEmail: accountEmail(inLogAt: log))
+    }
+
+    private static let logReadLimit = 1 << 20
+
+    static func accountEmail(inLogAt url: URL) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: logReadLimit) else { return nil }
+        return accountEmail(inLog: String(decoding: data, as: UTF8.self))
+    }
+
+    /// agy logs `applyAuthResult: email=<address>, authMethod=…` once it loads the Google sign-in.
+    static func accountEmail(inLog text: String) -> String? {
+        guard let marker = text.range(of: "applyAuthResult: email=", options: .backwards) else { return nil }
+        let email = text[marker.upperBound...].prefix { !$0.isWhitespace && $0 != "," }
+        return email.contains("@") ? String(email) : nil
     }
 
     /// Only a clean exit counts as an answer; a failed run reports its exit code with the
@@ -49,7 +74,7 @@ final class GeminiProvider: UsageProvider {
 
     /// The CLI's JSON reply, pretty-printed, for `--once --raw` and the diagnostics page.
     func fetchRawJSON() async throws -> String {
-        let data = try await usageData()
+        let data = try await usage().data
         guard let object = try? JSONSerialization.jsonObject(with: data),
               let pretty = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]) else {
             return String(decoding: data, as: UTF8.self)
@@ -58,11 +83,12 @@ final class GeminiProvider: UsageProvider {
     }
 
     func fetch() async throws -> UsageSnapshot {
-        try Self.snapshot(from: try await usageData(), now: Date())
+        let reply = try await usage()
+        return try Self.snapshot(from: reply.data, accountLabel: reply.accountEmail, now: Date())
     }
 
     /// Runs the blocking CLI call off the cooperative thread pool.
-    private func usageData() async throws -> Data {
+    private func usage() async throws -> UsageReply {
         let runUsage = runUsage
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
@@ -73,8 +99,9 @@ final class GeminiProvider: UsageProvider {
 
     /// Maps `command.data.groups[].buckets[]`: `gemini-5h` is the session window,
     /// `gemini-weekly` the weekly window, and the Argon bucket its own per-model row.
-    /// The "Claude and GPT models" group belongs to other providers and stays out.
-    static func snapshot(from data: Data, now: Date) throws -> UsageSnapshot {
+    /// The "Claude and GPT models" group is Antigravity's own quota for those models
+    /// (`3p-5h`, `3p-weekly`), listed as two more rows after Argon.
+    static func snapshot(from data: Data, accountLabel: String? = nil, now: Date) throws -> UsageSnapshot {
         let root = try JSON.object(from: data)
         let status = JSON.string(root["status"]) ?? "?"
         guard status == "SUCCESS" else {
@@ -86,6 +113,7 @@ final class GeminiProvider: UsageProvider {
         var session: UsageWindow?
         var weekly: UsageWindow?
         var extras: [LabeledWindow] = []
+        var thirdParty: [String: UsageWindow] = [:]
         var seenIDs: [String] = []
         for group in groups {
             for bucket in group["buckets"] as? [[String: Any]] ?? [] {
@@ -101,13 +129,22 @@ final class GeminiProvider: UsageProvider {
                     weekly = window
                 } else if id.contains("argon"), !extras.contains(where: { $0.label == "Argon" }) {
                     extras.append(LabeledWindow(label: "Argon", window: window))
+                } else if thirdPartyRows.contains(where: { $0.id == id }), thirdParty[id] == nil {
+                    thirdParty[id] = window
                 }
             }
+        }
+        for row in thirdPartyRows {
+            if let window = thirdParty[row.id] { extras.append(LabeledWindow(label: row.label, window: window)) }
         }
         guard session != nil || weekly != nil else {
             throw ProviderError.decoding("no gemini-5h/gemini-weekly bucket in \(seenIDs)")
         }
         return UsageSnapshot(session: session, weekly: weekly, extras: extras, planLabel: nil,
-                             fetchedAt: now, sourceNote: nil)
+                             accountLabel: accountLabel, fetchedAt: now, sourceNote: nil)
     }
+
+    /// Labels are localization keys; the menu translates them when it draws the row.
+    private static let thirdPartyRows = [(id: "3p-5h", label: "Claude/GPT session"),
+                                         (id: "3p-weekly", label: "Claude/GPT weekly")]
 }
